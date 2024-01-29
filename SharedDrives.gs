@@ -1,6 +1,6 @@
-/** 
- * This script will inventory all Shared Drives and add them to a Google Sheet including the Inventory Date, 
- * Shared Drive ID, Shared Drive name and all Shared Drive restriction settings. 
+/**
+ * This script will inventory all Shared Drives and add them to a Google Sheet including the Inventory Date,
+ * Shared Drive ID, Shared Drive name and all Shared Drive restriction settings.
  * @OnlyCurrentDoc
  */
 
@@ -18,7 +18,7 @@ function getSharedDrives() {
   let sharedDrivesItems = sharedDrives.items;
 
   // If a next page token exists then iterate through again.
-  while(sharedDrives.nextPageToken){
+  while (sharedDrives.nextPageToken) {
     sharedDrives = Drive.Drives.list({
       pageToken: sharedDrives.nextPageToken,
       maxResults: 100,
@@ -30,29 +30,35 @@ function getSharedDrives() {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Shared Drives");
 
-  // Check if there is data in row 2 and clear the sheet contents accordingly
-  var dataRange = ss.getRange(2, 1, 1, ss.getLastColumn());
-  var isDataInRow2 = dataRange.getValues().flat().some(Boolean);
+  // Clear existing data if any
+  ss.getRange(2, 1, ss.getLastRow() - 1, ss.getLastColumn()).clearContent();
 
-  if (isDataInRow2) {
-    ss.getRange(2, 1, ss.getLastRow() - 1, ss.getLastColumn()).clearContent();
-  }
-
-  sharedDrivesItems.forEach(function(value) {
-    var newRow = [audit_timestamp, value.id, value.name, value.restrictions.copyRequiresWriterPermission, value.restrictions.domainUsersOnly, value.restrictions.driveMembersOnly, value.restrictions.adminManagedRestrictions, value.restrictions.sharingFoldersRequiresOrganizerPermission, value.orgUnitId];
+  sharedDrivesItems.forEach(function (value, index) {
+    var newRow = [
+      audit_timestamp,
+      value.id,
+      value.name,
+      value.restrictions.copyRequiresWriterPermission,
+      value.restrictions.domainUsersOnly,
+      value.restrictions.driveMembersOnly,
+      value.restrictions.adminManagedRestrictions,
+      value.restrictions.sharingFoldersRequiresOrganizerPermission,
+      value.orgUnitId,
+    ];
     // add to row array instead of append because append is slow
     rowsToWrite.push(newRow);
+
+    // Set the formula for each row dynamically
+    var formula = `=IFERROR(VLOOKUP(I${index + 2}, 'Org Units'!OrgID2Path, 2, FALSE), VLOOKUP(I${index + 2}, 'Org Units'!Org2ParentPath, 2, FALSE))`;
+    ss.getRange(index + 2, 10).setFormula(formula);
   });
 
-  ss.getRange(ss.getLastRow() + 1, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
-  ss.hideColumns(9);
-
-  // Iterate down each row of Column I that has data and populate the Vlookup formula
-  for (var i = 2; i <= ss.getLastRow(); i++) {
-    if (ss.getRange(i, 9).getValue() !== "") {
-      ss.getRange(i, 10).setValue("=IFERROR(VLOOKUP(I2, 'Org Units'!OrgID2Path, 2, FALSE), VLOOKUP(I2, 'Org Units'!Org2ParentPath, 2, FALSE))");
-    }
+  // Write data to the sheet
+  if (rowsToWrite.length > 0) {
+    ss.getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
   }
+
+  ss.hideColumns(9);
 
   var endTime = new Date().getTime();
   var elapsed = (endTime - startTime) / 1000;
