@@ -15,7 +15,7 @@ function getSharedDrives() {
     fields: "items(id,name,restrictions,orgUnitId)",
   });
 
-  let sharedDrivesItems = sharedDrives.items;
+  let sharedDrivesItems = sharedDrives.items || [];
 
   // If a next page token exists then iterate through again.
   while (sharedDrives.nextPageToken) {
@@ -25,13 +25,15 @@ function getSharedDrives() {
       useDomainAdminAccess: true,
       hidden: false,
     });
-    sharedDrivesItems = sharedDrivesItems.concat(sharedDrives.items);
+    sharedDrivesItems = sharedDrivesItems.concat(sharedDrives.items || []);
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Shared Drives");
 
   // Clear existing data if any
+if (ss.getLastRow() > 1) {
   ss.getRange(2, 1, ss.getLastRow() - 1, ss.getLastColumn()).clearContent();
+}
 
   sharedDrivesItems.forEach(function (value, index) {
     var newRow = [
@@ -53,7 +55,7 @@ function getSharedDrives() {
     ss.getRange(index + 2, 10).setFormula(formula);
   });
 
-  // Write data to the sheet
+  // Write data to the sheet only if there is data to write
   if (rowsToWrite.length > 0) {
     ss.getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
   }
