@@ -12,7 +12,7 @@ The tool has two main components: The checklist of security settings with links 
 
 * Security Checklist: A comprehensive list of security controls, links to Google's documentation, best practice recommendations to the relevant area of the admin console.
 * Note-taking Section: Keep track of your progress by taking notes directly within the checklist. Prepare questions to be discussed during a review session with support engineers.
-* Fetch Info (Admin SDK): Utilize the "Fetch info" button to run App Script that inventories the environment and adds reports for Users, License assignments, Google Group Settings, Groups Membership, Mobile Devices, Shared Drive settings, OAuth Tokens, App Passwords, Organizational units, and Domains and DNS records.
+* Inventory scripts (Admin SDK): Utilize the scripts in the Extensions menu to run app script code that inventories the environment and adds reports for Users, License assignments, Google Group Settings, Groups Membership, Mobile Devices, Shared Drive settings, OAuth Tokens, App Passwords, Organizational units, and Domains and DNS records.
 
 ## Prerequisites:
 
@@ -23,7 +23,7 @@ This tool requires super admin access to your Google Workspace or Cloud Identity
 1. Make a copy of the [Security Checklist for Workspace Admins](https://docs.google.com/spreadsheets/d/1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8/copy), which will also copy the App Script code.
 2. Open the workbook and begin the security review process, starting with the Google Workspace Security Checklist.
 3. Use the provided links for guidance and take notes as needed.
-4. Optionally, run the "Fetch Info" function to inventory users, group memberships, and settings.
+4. Optionally, run the script by navigating to Extensions > [Public] Security Checklist for Workspace Admins > Run all scripts to inventory users, group memberships, and more.
 5. The completed workbook will be helpful to identify areas of Google Workspace where your organization may be able to improve security.
 ![Fetch Info menu button\](image.png)](<Fetch Info.png>)
 

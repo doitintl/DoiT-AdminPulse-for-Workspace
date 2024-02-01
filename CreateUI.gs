@@ -1,14 +1,19 @@
+/**This code creates the UI button under the Extensions menu and runs all scripts or individual scripts based on admin selection. 
+ * @OnlyCurrentDoc
+ */
+
 // Triggered on install
 function onInstall(e) {
   onOpen(e);
 }
 
 // Creates the menu and sub-menu items under "Add-ons"
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu('Fetch Info')
+function onOpen(e) {
+  SpreadsheetApp.getUi()
+    .createAddonMenu()
     .addItem('Run all scripts', 'fetchInfo')
-    .addSubMenu(ui.createMenu('Run Individual Scripts')
+    .addSeparator()
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Run Individual Scripts')
       .addItem('getUsersList', 'getUsersList')
       .addItem('getDomainList', 'getDomainList')
       .addItem('getGroupsSettings', 'getGroupsSettings')
@@ -20,8 +25,9 @@ function onOpen() {
       .addItem('getOrgUnits', 'getOrgUnits')
       .addItem('getSharedDrives', 'getSharedDrives')
       .addItem('getGroupMembers', 'getGroupMembers'))
-    .addToUi();
+    .addToUi()
 }
+
 
 // Function to run all scripts
 function fetchInfo() {
