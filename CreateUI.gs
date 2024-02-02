@@ -11,6 +11,8 @@ function onInstall(e) {
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
+    .addItem('Setup Sheet', 'setupSheet')
+    .addSeparator()
     .addItem('Run all scripts', 'fetchInfo')
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Run Individual Scripts')
