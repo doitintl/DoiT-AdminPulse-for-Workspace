@@ -51,10 +51,10 @@ function getDomainList(customer) {
   // Add formulas to columns D, E, F, and G starting from row 2
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    var formulasD = '=IFERROR(NSLookup($D$1,A3), empty)';
-    var formulasE = '=IFERROR(NSLookup("txt", A3), empty)';
-    var formulasF = '=IFERROR(NSLookup("TXT","google._domainkey."&A3), empty)';
-    var formulasG = '=IFERROR(NSLookup("TXT","_dmarc."&A3), empty)';
+    var formulasD = '=IFERROR(NSLookup($D$1,A2), empty)';
+    var formulasE = '=IFERROR(NSLookup("txt", A2), empty)';
+    var formulasF = '=IFERROR(NSLookup("TXT","google._domainkey."&A2), empty)';
+    var formulasG = '=IFERROR(NSLookup("TXT","_dmarc."&A2), empty)';
 
     sheet.getRange(2, 4, lastRow - 1, 1).setFormula(formulasD);
     sheet.getRange(2, 5, lastRow - 1, 1).setFormula(formulasE);
