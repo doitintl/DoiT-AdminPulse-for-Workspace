@@ -5,9 +5,13 @@
  */
 
 function getSharedDrives() {
-  var startTime = new Date().getTime();
-  var audit_timestamp = Utilities.formatDate(new Date(), "UTC", "yyyy-MM-dd'T'HH:mm:ss'Z'");
-  var rowsToWrite = [];
+  const startTime = new Date().getTime();
+  const audit_timestamp = Utilities.formatDate(
+    new Date(),
+    "UTC",
+    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+  );
+  const rowsToWrite = [];
 
   let sharedDrives = Drive.Drives.list({
     maxResults: 100,
@@ -28,15 +32,18 @@ function getSharedDrives() {
     sharedDrivesItems = sharedDrivesItems.concat(sharedDrives.items || []);
   }
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Shared Drives");
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("Shared Drives");
 
   // Clear existing data if any
-if (ss.getLastRow() > 1) {
-  ss.getRange(2, 1, ss.getLastRow() - 1, ss.getLastColumn()).clearContent();
-}
+  if (sheet.getLastRow() > 1) {
+    sheet
+      .getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn())
+      .clearContent();
+  }
 
   sharedDrivesItems.forEach(function (value, index) {
-    var newRow = [
+    const newRow = [
       audit_timestamp,
       value.id,
       value.name,
@@ -51,18 +58,20 @@ if (ss.getLastRow() > 1) {
     rowsToWrite.push(newRow);
 
     // Set the formula for each row dynamically
-    var formula = `=IFERROR(VLOOKUP(I${index + 2}, 'Org Units'!OrgID2Path, 2, FALSE), VLOOKUP(I${index + 2}, 'Org Units'!Org2ParentPath, 2, FALSE))`;
-    ss.getRange(index + 2, 10).setFormula(formula);
+    const formula = `=IFERROR(VLOOKUP(I${index + 2}, 'Org Units'!OrgID2Path, 2, FALSE), VLOOKUP(I${index + 2}, 'Org Units'!Org2ParentPath, 2, FALSE))`;
+    sheet.getRange(index + 2, 10).setFormula(formula);
   });
 
   // Write data to the sheet only if there is data to write
   if (rowsToWrite.length > 0) {
-    ss.getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
+    sheet
+      .getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length)
+      .setValues(rowsToWrite);
   }
 
-  ss.hideColumns(9);
+  sheet.hideColumns(9);
 
-  var endTime = new Date().getTime();
-  var elapsed = (endTime - startTime) / 1000;
-  console.log('Elapsed Seconds: ' + elapsed);
+  const endTime = new Date().getTime();
+  const elapsed = (endTime - startTime) / 1000;
+  Logger.log("Elapsed Seconds: " + elapsed);
 }
