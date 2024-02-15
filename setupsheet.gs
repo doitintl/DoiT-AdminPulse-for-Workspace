@@ -1,7 +1,9 @@
+//Script will delete existing sheets and copy each sheet from the public template file.
+
 function setupSheet() {
   // Prompt the user for confirmation
   var ui = SpreadsheetApp.getUi();
-  var response = ui.alert('Warning', 'This will delete any existing data in the sheet. Do you want to continue?', ui.ButtonSet.YES_NO);
+  var response = ui.alert('Warning', 'This will delete any existing data in the sheet, including any notes or completed checklists. Do you want to continue?', ui.ButtonSet.YES_NO);
 
   // Check user's response
   if (response === ui.Button.NO) {

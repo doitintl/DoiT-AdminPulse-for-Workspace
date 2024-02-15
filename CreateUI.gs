@@ -12,7 +12,7 @@ function onInstall(e) {
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
-    .addItem('Setup Sheet', 'setupSheet')
+    .addItem('Refresh Sheet', 'setupSheet')
     .addSeparator()
     .addItem('Run all scripts', 'promptRunAllScripts')
     .addSeparator()
