@@ -6,10 +6,21 @@
  */
 function getLicenseAssignments() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = spreadsheet.getSheetByName("Licenses");
+  const licensesSheet = spreadsheet.getSheetByName("Licenses");
 
-  // Check if there is data in row 2 and clear the sheet contents accordingly
-  clearSheetContents(sheet);
+  // Check if "Licenses" sheet exists, delete it if it does, otherwise create it
+  if (licensesSheet) {
+    spreadsheet.deleteSheet(licensesSheet);
+  }
+  const licenseSheet = spreadsheet.insertSheet("Licenses");
+
+  // Add headers with Montserrat font, fill color, and freeze header row
+  const headerRange = licenseSheet.getRange("A1:C1");
+  headerRange.setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight("bold").setFontColor("#ffffff").setValues([["Email", "License", "Suspended"]]);
+  licenseSheet.setFrozenRows(1);
+
+  // Delete columns D-Z
+  licenseSheet.deleteColumns(4, 23);
 
   const productIds = [
     "Google-Apps",
@@ -94,23 +105,33 @@ function getLicenseAssignments() {
     userId,
     licenses.join(", "),
   ]);
-  writeDataToSheet(sheet, data);
+  writeDataToSheet(licenseSheet, data);
 
-  const lastRow = sheet.getLastRow();
-  applyVLookupFormula(sheet, lastRow);
-  sortSheetByColumn(sheet, 2, true);
-}
+  const lastRow = licenseSheet.getLastRow();
+  applyVLookupFormula(licenseSheet, lastRow);
+  sortSheetByColumn(licenseSheet, 2, true);
 
-// Helper function to clear sheet contents from row 2 onward
-function clearSheetContents(sheet) {
-  const dataRange = sheet.getRange(2, 1, 1, sheet.getLastColumn());
-  const isDataInRow2 = dataRange.getValues().flat().some(Boolean);
+  // Auto resize columns
+  licenseSheet.autoResizeColumns(1, 3);
 
-  if (isDataInRow2) {
-    sheet
-      .getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn())
-      .clearContent();
-  }
+  // Add conditional formatting rules
+  const conditionalFormatRules = licenseSheet.getConditionalFormatRules();
+  const trueRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("TRUE")
+    .setBackground("#FFCDD2")
+    .setRanges([licenseSheet.getRange("C2:C")])
+    .build();
+
+  const falseRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("FALSE")
+    .setBackground("#B7E1CD")
+    .setRanges([licenseSheet.getRange("C2:C")])
+    .build();
+
+  conditionalFormatRules.push(trueRule);
+  conditionalFormatRules.push(falseRule);
+
+  licenseSheet.setConditionalFormatRules(conditionalFormatRules);
 }
 
 // Helper function to get all license assignments for a product
@@ -151,6 +172,14 @@ function applyVLookupFormula(sheet, lastRow) {
 
 // Helper function to sort sheet by a specific column
 function sortSheetByColumn(sheet, column, ascending) {
-  const filter = sheet.getFilter();
-  filter.sort(column, ascending);
+  const range = sheet.getDataRange();
+  const numRows = range.getNumRows();
+  const sortRange = sheet.getRange(2, 1, numRows - 1, sheet.getLastColumn());
+
+  if (sheet.getFilter()) {
+    const filter = sheet.getFilter();
+    filter.remove();
+  }
+
+  sortRange.sort({ column: column, ascending: ascending });
 }

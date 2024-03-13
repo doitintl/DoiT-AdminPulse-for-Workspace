@@ -16,14 +16,14 @@ function getUsersList() {
     orderBy: "email", 
   };
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var existingSheet = ss.getSheetByName("Users");
+  var userSheet = SpreadsheetApp.getActiveSpreadsheet();
+  var existingSheet = userSheet.getSheetByName("Users");
 
   if (existingSheet) {
-    ss.deleteSheet(existingSheet);
+    userSheet.deleteSheet(existingSheet);
   }
 
-  var usersSheet = ss.insertSheet("Users");
+  var usersSheet = userSheet.insertSheet("Users");
   var headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
                   "Archived", "Last Login Time", "Enrolled in 2SV", "Enforced in 2SV",
                   "Org Path"];
@@ -120,4 +120,7 @@ function getUsersList() {
 
   var rules = [ruleC, ruleCFalse, ruleH, ruleHFalse, ruleI, ruleIFalse, ruleD, ruleDFalse];
   usersSheet.setConditionalFormatRules(rules);
+
+  // Create named range for columns B, C, D, and E
+  var namedRange = userSheet.setNamedRange('UserStatus', usersSheet.getRange('B2:E1000'));
 }
