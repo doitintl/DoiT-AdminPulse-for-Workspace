@@ -1,8 +1,11 @@
 function contactPartner() {
   try {
+    // Get the user's email address
+    var userEmail = Session.getActiveUser().getEmail();
+
     // Compose the email
-    var subject = "Assistance Request";
-    var body = "Hi DoiT Team,\n\nSomeone has requested assistance with the Security Checklist for Workspace Admins. Please do your best to help them.";
+    var subject = `Assistance Request - ${userEmail}`;
+    var body = `Hi DoiT Team,\n\n${userEmail} has requested assistance with the Security Checklist for Workspace Admins. Please do your best to help them.`;
 
     var recipient = "workspace-security@doit.com";
 
@@ -14,9 +17,9 @@ function contactPartner() {
     });
 
     // Log confirmation
-    Logger.log("Email Sent successfully.");
+    console.log("Email Sent successfully.");
   } catch (error) {
     // Log any errors
-    Logger.log("Error: " + error.toString());
+    console.error("Error: " + error.toString());
   }
 }
