@@ -1,0 +1,39 @@
+{
+    "timeZone": "America/New_York",
+    "exceptionLogging": "STACKDRIVER",
+    "runtimeVersion": "V8",
+    "dependencies": {
+      "enabledAdvancedServices": [
+        {
+          "userSymbol": "Sheets",
+          "serviceId": "sheets",
+          "version": "v4"
+        },
+        {
+          "userSymbol": "AdminDirectory",
+          "serviceId": "admin",
+          "version": "directory_v1"
+        },
+        {
+          "userSymbol": "AdminGroupSettings",
+          "serviceId": "groupssettings",
+          "version": "v1"
+        },
+        {
+          "userSymbol": "AdminLicenseManager",
+          "serviceId": "licensing",
+          "version": "v1"
+        },
+        {
+          "userSymbol": "Drive",
+          "serviceId": "drive",
+          "version": "v3"
+        },
+        {
+          "userSymbol": "Gmail",
+          "serviceId": "gmail",
+          "version": "v1"
+        }
+      ]
+    }
+  }
