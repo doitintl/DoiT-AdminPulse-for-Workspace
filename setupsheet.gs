@@ -11,14 +11,17 @@ function setupSheet() {
     return;
   }
 
-  // Document ID of the template file
-  var templateFileId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
+  // Get the domain address
+  var domain = Session.getActiveUser().getEmail().split('@')[1];
 
-  // Open the template file
-  var templateFile = SpreadsheetApp.openById(templateFileId);
+  // Create a copy of the template file
+  var templateId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
+  var copiedFile = DriveApp.getFileById(templateId).makeCopy();
+  var copiedFileId = copiedFile.getId();
 
-  // Get all sheets from the template file
-  var templateSheets = templateFile.getSheets();
+  // Get all sheets from the copied template file
+  var templateSpreadsheet = SpreadsheetApp.openById(copiedFileId);
+  var templateSheets = templateSpreadsheet.getSheets();
 
   // Get the current active spreadsheet (user's sheet)
   var currentSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -45,9 +48,12 @@ function setupSheet() {
     currentSpreadsheet.deleteSheet(sheet1);
   }
 
-  // Set the document title to "Security Checklist for Workspace Admins"
-  currentSpreadsheet.rename('Security Checklist for Workspace Admins');
+  // Set the document title to "[domain] Security Checklist for Workspace Admins"
+  currentSpreadsheet.rename('[' + domain + '] Security Checklist for Workspace Admins');
 
   // Inform the user that the setup is complete
   ui.alert('Sheet Setup Complete', 'The sheets have been successfully set up.', ui.ButtonSet.OK);
+
+  // Close and delete the copied template file
+  copiedFile.setTrashed(true);
 }
