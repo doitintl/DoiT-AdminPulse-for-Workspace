@@ -1,29 +1,33 @@
-function getDomainList(customer) {
-  // Retrieve domain information from Admin Directory API
-  const domainList = [];
-  let pageToken = null;
-  const customerDomain = 'my_customer';
-  
-const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-let sheet = spreadsheet.getSheetByName('Domains/DNS');
+function getUsersList() {
+  const users = [];
+  const userEmail = Session.getActiveUser().getEmail();
+  const domain = userEmail.split("@").pop();
+  const options = {
+    domain: domain, 
+    customer: "my_customer",
+    maxResults: 100, 
+    projection: "FULL", 
+    viewType: "admin_view", 
+    orderBy: "email", 
+  };
 
-// Check if "Domains/DNS" sheet exists, delete it if it does
-if (sheet) {
-  spreadsheet.deleteSheet(sheet);
-}
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
 
-// Get the index for the new sheet (as the last sheet in the workbook)
-const newSheetIndex = spreadsheet.getNumSheets();
+  // Check if "Users" sheet exists, delete it if it does
+  let usersSheet = spreadsheet.getSheetByName("Users");
+  if (usersSheet) {
+    spreadsheet.deleteSheet(usersSheet);
+  }
 
-// Create a new sheet at the last index
-sheet = spreadsheet.insertSheet('Domains/DNS', newSheetIndex);
+  // Create a new sheet at the last index
+  usersSheet = spreadsheet.insertSheet("Users", lastSheetIndex);
 
-// Set "google.com" in cell A2 as a placeholder
-sheet.getRange('A2').setValue('google.com');
-  
-  // Set the headers
-  const headers = ["Domains", "Verified", "Primary", "MX", "SPF", "DKIM", "DMARC"];
-  const headerRange = sheet.getRange("A1:G1");
+  var headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
+                  "Archived", "Last Login Time", "Enrolled in 2SV", "Enforced in 2SV",
+                  "Org Path"];
+  var headerRange = usersSheet.getRange("A1:J1");
   headerRange.setValues([headers]);
   headerRange.setFontColor("#ffffff");
   headerRange.setFontSize(10);
@@ -31,192 +35,92 @@ sheet.getRange('A2').setValue('google.com');
   headerRange.setBackground("#fc3165");
   headerRange.setFontWeight("bold");
 
-  // Set notes for cells D1 and F1
-  sheet.getRange("D1").setNote("Mail Exchange");
-  sheet.getRange("F1").setNote("DomainKeys Identified Mail, MXDomain = No Google DKIM record");
+  // Delete cells K to Z
+  usersSheet.deleteColumns(11, 16); // K to Z
 
-  // Retrieve domain information
+  let response;
   do {
-    try {
-      const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
+    response = AdminDirectory.Users.list(options); //Types of info pulled from API https://developers.google.com/admin-sdk/directory/reference/rest/v1/users
+    users.push(
+      ...response.users.map((user) => [
+        user.name.fullName,
+        user.primaryEmail,
+        user.isAdmin,
+        user.isDelegatedAdmin,
+        user.suspended,
+        user.archived,
+        user.lastLoginTime,
+        user.isEnrolledIn2Sv,
+        user.isEnforcedIn2Sv,
+        user.orgUnitPath,
+      ]),
+    );
 
-      response.domains.forEach(function (domain) {
-        domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
-      });
-    } catch (e) {
-      console.error('Error retrieving domains:', e);
-      break;
+    // For domains with many users, the results are paged
+    if (response.nextPageToken) {
+      options.pageToken = response.nextPageToken;
     }
-  } while (pageToken);
+  } while (response.nextPageToken);
 
-  // Retrieve domain alias information
-  pageToken = null;
+  // Insert data in a spreadsheet
+  usersSheet.setFrozenRows(1); // Sets headers in sheet and freezes row
+  usersSheet.getRange(2, 1, users.length, users[0].length).setValues(users); // Adds in user info starting from row 1
 
-  do {
-    try {
-      const response = AdminDirectory.DomainAliases.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
+  // Auto resize all columns
+  usersSheet.autoResizeColumns(1, usersSheet.getLastColumn());
 
-      if (response.domainAliases) {
-        response.domainAliases.forEach(function (domainAlias) {
-          domainList.push([domainAlias.domainAliasName, domainAlias.verified, 'False']);
-        });
-      }
-    } catch (e) {
-      console.error('Error retrieving domain aliases:', e);
-      break;
-    }
-  } while (pageToken);
+  // Apply conditional formatting
+  var rangeC = usersSheet.getRange("C2:C1000");
+  var ruleC = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("TRUE")
+    .setBackground("#ffb6c1")
+    .setRanges([rangeC])
+    .build();
+  var ruleCFalse = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("FALSE")
+    .setBackground("#b7e1cd")
+    .setRanges([rangeC])
+    .build();
 
-  // Write domain information to spreadsheet
-  sheet.getRange(2, 1, domainList.length, domainList[0].length).setValues(domainList);
+  var rangeH = usersSheet.getRange("H2:H1000");
+  var ruleH = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("FALSE")
+    .setBackground("#ffb6c1")
+    .setRanges([rangeH])
+    .build();
+  var ruleHFalse = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("TRUE")
+    .setBackground("#b7e1cd")
+    .setRanges([rangeH])
+    .build();
 
-  // Add formulas to columns D, E, F, and G starting from row 2
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    const formulasD = '=IFERROR(NSLookup($D$1,A2), empty)';
-    const formulasE = '=IFERROR(NSLookup("txt", A2), empty)';
-    const formulasF = '=IFERROR(NSLookup("TXT","google._domainkey."&A2), empty)';
-    const formulasG = '=IFERROR(NSLookup("TXT","_dmarc."&A2), empty)';
+  var rangeI = usersSheet.getRange("I2:I1000");
+  var ruleI = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("FALSE")
+    .setBackground("#ffb6c1")
+    .setRanges([rangeI])
+    .build();
+  var ruleIFalse = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("TRUE")
+    .setBackground("#b7e1cd")
+    .setRanges([rangeI])
+    .build();
 
-    sheet.getRange(2, 4, lastRow - 1, 1).setFormula(formulasD);
-    sheet.getRange(2, 5, lastRow - 1, 1).setFormula(formulasE);
-    sheet.getRange(2, 6, lastRow - 1, 1).setFormula(formulasF);
-    sheet.getRange(2, 7, lastRow - 1, 1).setFormula(formulasG);
-  }
-
-  // Delete columns H-Z
-  sheet.deleteColumns(8, 19);
-
-  // Delete empty rows
-  const dataRange = sheet.getDataRange();
-  const allData = dataRange.getValues();
-  for (let i = allData.length - 1; i >= 0; i--) {
-    if (allData[i].every(value => value === '')) {
-      sheet.deleteRow(i + 1);
-    }
-  }
-
-  // Set column sizes
-  sheet.autoResizeColumn(1);
-  sheet.setColumnWidth(4, 150);
-  sheet.setColumnWidth(5, 150);
-  sheet.setColumnWidth(6, 150);
-  sheet.setColumnWidth(7, 150);
-
-  // Apply conditional formatting rules
-  const rangeD = sheet.getRange("D2:D" + lastRow);
-  const ruleD = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("google")
+  var rangeD = usersSheet.getRange("D2:D1000");
+  var ruleD = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("TRUE")
+    .setBackground("#ffb6c1")
+    .setRanges([rangeD])
+    .build();
+  var ruleDFalse = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains("FALSE")
     .setBackground("#b7e1cd")
     .setRanges([rangeD])
     .build();
 
-  const rangeE = sheet.getRange("E2:E" + lastRow);
-  const ruleE = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("_spf.google.com")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeE])
-    .build();
+  var rules = [ruleC, ruleCFalse, ruleH, ruleHFalse, ruleI, ruleIFalse, ruleD, ruleDFalse];
+  usersSheet.setConditionalFormatRules(rules);
 
-  const rangeF = sheet.getRange("F2:F" + lastRow);
-  const ruleF = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("v=dkim1;")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeF])
-    .build();
-
-  const rangeG = sheet.getRange("G2:G" + lastRow);
-  const ruleG = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("v=dkim")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeG])
-    .build();
-
-  const ruleDRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("google")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeD])
-    .build();
-
-  const ruleERed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("_spf.google.com")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeE])
-    .build();
-
-  const ruleFRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("v=dkim1;")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeF])
-    .build();
-
-  const ruleGRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("v=dkim")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeG])
-    .build();
-
-  const rules = [ruleD, ruleE, ruleF, ruleG, ruleDRed, ruleERed, ruleFRed, ruleGRed];
-  sheet.setConditionalFormatRules(rules);
-}
-
-function NSLookup(type, domain) { //Function takes DNS record type and domain as input
-
-  if (typeof type == 'undefined') { //Validation for record type and domain
-    throw new Error('Missing parameter 1 dns type');
-  }
-
-  if (typeof domain == 'undefined') {
-    throw new Error('Missing parameter 2 domain name');
-  }
-
-  type = type.toUpperCase(); //Convert record type to uppercase
-
-  const url = 'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(domain) + '&type=' + encodeURIComponent(type); //Concatenate URL query 
-
-  const options = {
-    muteHttpExceptions: true,
-    headers: {
-      accept: "application/dns-json"
-    }
-  };
-
-  const result = UrlFetchApp.fetch(url, options);
-  const rc = result.getResponseCode();
-  const resultText = result.getContentText();
-
-  if (rc !== 200) {
-    throw new Error(rc);
-  }
-
-  const errors = [
-    { name: "NoError", description: "No Error"}, // 0
-    { name: "FormErr", description: "Format Error"}, // 1
-    { name: "ServFail", description: "Server Failure"}, // 2
-    { name: "NXDomain", description: "Non-Existent Domain"}, // 3
-    { name: "NotImp", description: "Not Implemented"}, // 4
-    { name: "Refused", description: "Query Refused"}, // 5
-    { name: "YXDomain", description: "Name Exists when it should not"}, // 6
-    { name: "YXRRSet", description: "RR Set Exists when it should not"}, // 7
-    { name: "NXRRSet", description: "RR Set that should exist does not"}, // 8
-    { name: "NotAuth", description: "Not Authorized"} // 9
-  ];
-
-  const response = JSON.parse(resultText);
-
-  if (response.Status !== 0) {
-    return errors[response.Status].name;
-  }
-
-  const outputData = [];
-
-  for (const i in response.Answer) {
-    outputData.push(response.Answer[i].data);
-  }
-
-  const outputString = outputData.join('\n');
-
-  return outputString;
+  // Create named range for columns B, C, D, and E
+  var namedRange = spreadsheet.setNamedRange('UserStatus', usersSheet.getRange('B2:E1000'));
 }
