@@ -1,21 +1,20 @@
-/** This code will inventory all OUs in Google Workspace. The org unit IDs are used in other sections of the workbook.
- * @OnlyCurrentDoc
- */
+function getOrgUnits(){
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
 
-function getOrgUnits() {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var orgUnitsSheet = spreadsheet.getSheetByName("Org Units");
+  let orgUnitsSheet = spreadsheet.getSheetByName("Org Units");
 
   // Check if the sheet exists, delete it if it does
   if (orgUnitsSheet) {
     spreadsheet.deleteSheet(orgUnitsSheet);
   }
 
-  // Create a new 'Org Units' sheet
-  orgUnitsSheet = spreadsheet.insertSheet("Org Units");
+  // Create a new 'Org Units' sheet at the last index
+  orgUnitsSheet = spreadsheet.insertSheet("Org Units", lastSheetIndex);
 
   // Add headers to the sheet
-  var headers = [
+  const headers = [
     "Org Name ID",
     "Org Unit Name",
     "OrgUnit Path",
@@ -26,7 +25,7 @@ function getOrgUnits() {
   orgUnitsSheet.appendRow(headers);
 
   // Format the headers
-  var headerRange = orgUnitsSheet.getRange("A1:F1");
+  const headerRange = orgUnitsSheet.getRange("A1:F1");
   headerRange.setFontWeight("bold").setFontColor("#ffffff").setFontFamily("Montserrat");
   headerRange.setBackground("#fc3165");
 

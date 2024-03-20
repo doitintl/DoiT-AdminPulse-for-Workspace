@@ -1,8 +1,3 @@
-/**
- * This script will list group memberships and the user's group role, one per row.
- * @OnlyCurrentDoc
- */
-
 function getGroupMembers() {
   const userEmail = Session.getActiveUser().getEmail();
   const domain = userEmail.split("@").pop();
@@ -67,6 +62,9 @@ function getGroupMembers() {
 
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = spreadsheet.getSheets();
+    const lastSheetIndex = sheets.length;
+
     let groupMembersSheet = spreadsheet.getSheetByName("Group Members");
 
     // Check if the sheet exists and delete it if it does
@@ -74,8 +72,8 @@ function getGroupMembers() {
       spreadsheet.deleteSheet(groupMembersSheet);
     }
 
-    // Create the "Group Members" sheet
-    groupMembersSheet = spreadsheet.insertSheet("Group Members");
+    // Create the "Group Members" sheet at the last index
+    groupMembersSheet = spreadsheet.insertSheet("Group Members", lastSheetIndex);
 
     // Set up the sheet with headers and formatting
     groupMembersSheet.getRange("A1:F1").setValues([["Group Email", "Member Email", "Member Role", "Member Status", "Member Type", "Member ID"]]);

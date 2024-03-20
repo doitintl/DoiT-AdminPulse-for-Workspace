@@ -6,14 +6,17 @@ function getDomainInfo() {
   // Get the active spreadsheet
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
+
   // Delete the "General Account Settings" sheet if it exists
-  const existingSheet = spreadsheet.getSheetByName('General Account Settings');
+  let existingSheet = spreadsheet.getSheetByName('General Account Settings');
   if (existingSheet) {
     spreadsheet.deleteSheet(existingSheet);
   }
 
-  // Create the "General Account Settings" sheet
-  const generalSheet = spreadsheet.insertSheet('General Account Settings');
+  // Create the "General Account Settings" sheet at the last index
+  const generalSheet = spreadsheet.insertSheet('General Account Settings', lastSheetIndex);
 
   // Set up the sheet with headers, formatting, and column sizes
   generalSheet.getRange('A1:M1').setValues([['Customer Workspace ID', 'Primary Domain', 'Organization Name', 'Language', 'Customer Contact', 'Address1', 'Address2', 'Postal Code', 'Country Code', 'Region', 'Locality', 'Phone number', 'Alternate Email']]);

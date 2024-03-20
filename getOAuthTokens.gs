@@ -2,7 +2,7 @@
  * This script will list all Connected Applications to user accounts, one per row.
  * This information can be more helpful compared to Google's admin console
  * reporting of the number of users per app.
- * @OnlyCurrentDoc
+ * 
  */
 
 // Get all users. Specify 'domain' to filter search to one domain
@@ -38,15 +38,18 @@ function listAllUsers(cb) {
 function getTokens() {
   const oAuthTokenSheetName = "OAuth Tokens";
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
+
   // Check if "OAuth Tokens" sheet exists and delete if it does
   let oAuthTokenSheet = spreadsheet.getSheetByName(oAuthTokenSheetName);
   if (oAuthTokenSheet) {
     spreadsheet.deleteSheet(oAuthTokenSheet);
   }
-  
-  // Create new sheet
-  oAuthTokenSheet = spreadsheet.insertSheet(oAuthTokenSheetName);
+
+  // Create new sheet at the last index
+  oAuthTokenSheet = spreadsheet.insertSheet(oAuthTokenSheetName, lastSheetIndex);
+
   
   // Apply font
   const headerRange = oAuthTokenSheet.getRange('A1:G1');

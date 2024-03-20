@@ -1,20 +1,21 @@
 /**
  * This script will inventory names of all configured App Passwords from all users in an organization.
- * @OnlyCurrentDoc
+ * 
  */
 
 function getAppPasswords() {
   const userEmail = Session.getActiveUser().getEmail();
   const domain = userEmail.split("@").pop();
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // Create or clear the "App Passwords" sheet
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
+
+  // Create or clear the "App Passwords" sheet at the last index
   let appPasswordsSheet = spreadsheet.getSheetByName("App Passwords");
   if (appPasswordsSheet) {
-    appPasswordsSheet.clear(); // Clear existing data
-  } else {
-    appPasswordsSheet = spreadsheet.insertSheet("App Passwords"); // Create new sheet
+    spreadsheet.deleteSheet(appPasswordsSheet);
   }
+  appPasswordsSheet = spreadsheet.insertSheet("App Passwords", lastSheetIndex);
   
   // Set font to Montserrat
   appPasswordsSheet.getRange("A1:Z1").setFontFamily("Montserrat");

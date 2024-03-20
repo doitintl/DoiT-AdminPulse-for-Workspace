@@ -1,18 +1,19 @@
 /**
  * This script lists all mobile devices in a Google Workspace environment.
- * @OnlyCurrentDoc
+ * 
  **/
 
 function getMobileDevices() {
-  const spreadsheet = SpreadsheetApp.getActive();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
 
-  // Check if "Mobile Report" sheet exists, delete it if it does, and create it
+  // Check if "Mobile Report" sheet exists, delete it if it does, and create it at the last index
   let mobileDeviceSheet = spreadsheet.getSheetByName("Mobile Report");
   if (mobileDeviceSheet !== null) {
     spreadsheet.deleteSheet(mobileDeviceSheet);
   }
-  mobileDeviceSheet = spreadsheet.insertSheet("Mobile Report");
-
+  mobileDeviceSheet = spreadsheet.insertSheet("Mobile Report", lastSheetIndex);
   // Add headers
   const headers = ["Full Name", "Email", "Device Id", "Model", "Type", "Status", "Last Sync"];
   mobileDeviceSheet.appendRow(headers);

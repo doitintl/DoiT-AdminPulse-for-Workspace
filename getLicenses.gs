@@ -2,17 +2,21 @@
  * Logs the license assignments, including the product ID and the SKU ID, for
  * the users in the domain. Notice the use of page tokens to access the full
  * list of results.
- * @OnlyCurrentDoc
+ * 
  */
 function getLicenseAssignments() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const licensesSheet = spreadsheet.getSheetByName("Licenses");
+  const sheets = spreadsheet.getSheets();
+  const lastSheetIndex = sheets.length;
 
-  // Check if "Licenses" sheet exists, delete it if it does, otherwise create it
-  if (licensesSheet) {
-    spreadsheet.deleteSheet(licensesSheet);
+  // Check if "Licenses" sheet exists, delete it if it does
+  let licenseSheet = spreadsheet.getSheetByName("Licenses");
+  if (licenseSheet) {
+    spreadsheet.deleteSheet(licenseSheet);
   }
-  const licenseSheet = spreadsheet.insertSheet("Licenses");
+
+  // Create the "Licenses" sheet at the last index
+  licenseSheet = spreadsheet.insertSheet("Licenses", lastSheetIndex);
 
   // Add headers with Montserrat font, fill color, and freeze header row
   const headerRange = licenseSheet.getRange("A1:C1");

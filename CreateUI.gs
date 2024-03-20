@@ -1,6 +1,6 @@
 /**
  * This code creates the UI button under the Extensions menu and runs all scripts or individual scripts based on admin selection.
- * @OnlyCurrentDoc
+ * 
  */
 
 // Triggered on install
@@ -17,17 +17,17 @@ function onOpen(e) {
     .addItem('Run all scripts', 'promptRunAllScripts')
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Run Individual Scripts')
-      .addItem('List Users', 'getUsersList')
+      .addItem('List Customer Contact Info', 'getDomainInfo')
       .addItem('List Domains', 'promptGetDomainList')
-      .addItem('List Group Settings', 'getGroupsSettings')
+      .addItem('List Users', 'getUsersList')
       .addItem('List Mobile Devices', 'getMobileDevices')
       .addItem('List License Assignments', 'getLicenseAssignments')
       .addItem('List OAuth Tokens', 'getTokens')
-      .addItem('List Customer Contact Info', 'getDomainInfo')
       .addItem('List App Passwords', 'getAppPasswords')
       .addItem('List Organizational Units', 'getOrgUnits')
       .addItem('List Shared Drives', 'getSharedDrives')
       .addItem('List Group Members', 'getGroupMembers'))
+      .addItem('List Group Settings', 'getGroupsSettings')
     .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
@@ -61,15 +61,15 @@ function promptGetDomainList() {
 
 // Function to run all scripts
 function fetchInfo() {
-  getUsersList();
+  getDomainInfo();  
   getDomainList();
-  getGroupsSettings();
+  getUsersList();
   getMobileDevices();
   getLicenseAssignments();
   getTokens();
-  getDomainInfo();
   getAppPasswords();
   getOrgUnits();
   getSharedDrives();
   getGroupMembers();
+  getGroupsSettings();  
 }
