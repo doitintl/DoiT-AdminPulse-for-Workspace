@@ -26,8 +26,8 @@ function onOpen(e) {
       .addItem('List App Passwords', 'getAppPasswords')
       .addItem('List Organizational Units', 'getOrgUnits')
       .addItem('List Shared Drives', 'getSharedDrives')
-      .addItem('List Group Members', 'getGroupMembers'))
       .addItem('List Group Settings', 'getGroupsSettings')
+      .addItem('List Group Members', 'getGroupMembers'))
     .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
