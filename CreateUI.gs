@@ -8,7 +8,7 @@ function onInstall(e) {
   onOpen(e);
 }
 
-// Creates the menu and sub-menu items under "Add-ons"
+// Creates the menu and sub-menu items under "Extensions"
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
@@ -31,6 +31,9 @@ function onOpen(e) {
     .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
+
+  // Show alert message
+  SpreadsheetApp.getUi().alert('Welcome to the Security Checklist for Workspace Admins! Make a Copy of this document so that you owner. Click on the "Extensions" menu above to access the app functions to get started.');
 }
 
 // Function to run all scripts with a confirmation prompt
