@@ -29,6 +29,7 @@ function getGroupsSettings() {
     "whoCanPostMessage",
     "whoCanViewMembership",
     "whoCanViewGroup",
+    "whoCanDiscoverGroup",
     "allowExternalMembers",
     "allowWebPosting",
     "primaryLanguage",
@@ -53,7 +54,6 @@ function getGroupsSettings() {
     "whoCanAssistContent",
     "customRolesEnabledForSettingsToBeMerged",
     "enableCollaborativeInbox",
-    "whoCanDiscoverGroup",
     "defaultSender",
   ];
   const headersRange = groupSettingsSheet.getRange(1, 1, 1, headers.length);
@@ -105,6 +105,15 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
+    .getRange("H1")
+    .setNote(
+      "Specifies the set of users for whom this group is discoverable. Possible values are:\n" +
+        "   ANYONE_CAN_DISCOVER: The group is discoverable by anyone searching for groups.\n" +
+        "   ALL_IN_DOMAIN_CAN_DISCOVER: The group is only discoverable by users within the same domain as the group.\n" +
+        "   ALL_MEMBERS_CAN_DISCOVER: The group is only discoverable by existing members of the group.",
+    );  
+
+  groupSettingsSheet
     .getRange("G1")
     .setNote(
       "Permissions to view group messages. Possible values are:\n\n" +
@@ -115,7 +124,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("H1")
+    .getRange("I1")
     .setNote(
       "Identifies whether members external to your organization can join the group. Possible values are:\n\n" +
         "true: Google Workspace users external to your organization can become members of this group.\n\n" +
@@ -123,7 +132,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("I1")
+    .getRange("J1")
     .setNote(
       "Allows posting from web. Possible values are:\n\n" +
         "true: Allows any member to post to the group forum.\n\n" +
@@ -131,13 +140,13 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("J1")
+    .getRange("K1")
     .setNote(
       "The primary language for the group. Use the language tags in the Supported languages table.",
     );
 
   groupSettingsSheet
-    .getRange("K1")
+    .getRange("L1")
     .setNote(
       "Allows the Group contents to be archived. Possible values are:\n\n" +
         "true: Archive messages sent to the group.\n\n" +
@@ -145,7 +154,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("L1")
+    .getRange("M1")
     .setNote(
       "Allows the group to be archived only. Possible values are:\n\n" +
         "true: Group is archived and the group is inactive. New messages to this group are rejected. The older archived messages are browseable and searchable.\n\n" +
@@ -156,27 +165,27 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("M1")
-    .setNote(
-      "Specifies moderation levels for messages detected as spam. Possible values are:\n\n" +
-        "ALLOW: Post the message to the group.\n\n" +
-        "MODERATE: Send the message to the moderation queue. This is the default.\n\n" +
-        "SILENTLY_MODERATE: Send the message to the moderation queue, but do not send notification to moderators.\n\n" +
-        "REJECT: Immediately reject the message.",
-    );
-
-  groupSettingsSheet
     .getRange("N1")
     .setNote(
-      "Specifies moderation levels for messages detected as spam. Possible values are:\n\n" +
-        "ALLOW: Post the message to the group.\n\n" +
-        "MODERATE: Send the message to the moderation queue. This is the default.\n\n" +
-        "SILENTLY_MODERATE: Send the message to the moderation queue, but do not send notification to moderators.\n\n" +
-        "REJECT: Immediately reject the message.",
+      "Moderation level of incoming messages. Possible values are:\n\n" +
+        "MODERATE_ALL_MESSAGES: All messages are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
+        "MODERATE_NON_MEMBERS: All messages from non group members are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
+        "MODERATE_NEW_MEMBERS: All messages from new members are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
+        "MODERATE_NONE: No moderator approval is required. Messages are delivered directly to the group.",
     );
 
   groupSettingsSheet
     .getRange("O1")
+    .setNote(
+      "Specifies moderation levels for messages detected as spam. Possible values are:\n\n" +
+        "ALLOW: Post the message to the group.\n\n" +
+        "MODERATE: Send the message to the moderation queue. This is the default.\n\n" +
+        "SILENTLY_MODERATE: Send the message to the moderation queue, but do not send notification to moderators.\n\n" +
+        "REJECT: Immediately reject the message.",
+    );
+
+  groupSettingsSheet
+    .getRange("P1")
     .setNote(
       "Specifies who receives the default reply. Possible values are:\n\n" +
         "REPLY_TO_CUSTOM: For replies to messages, use the group's custom email address.\n" +
@@ -189,7 +198,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("P1")
+    .getRange("Q1")
     .setNote(
       "An email address used when replying to a message if the replyTo property is set to REPLY_TO_CUSTOM. This address is defined by an account administrator.\n\n" +
         "When the group's ReplyTo property is set to REPLY_TO_CUSTOM, the customReplyTo property holds the custom email address used when replying to a message.\n\n" +
@@ -197,7 +206,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("Q1")
+    .getRange("R1")
     .setNote(
       "Whether to include a custom footer. Possible values are:\n\n" +
         "true: Include the custom footer text set in the `customFooterText` property.\n\n" +
@@ -205,14 +214,14 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("R1")
+    .getRange("S1")
     .setNote(
       "Sets the content of the custom footer text. Maximum characters: 1,000.\n\n" +
         "Note: Custom footers only appear in emails sent from the group, not when viewing messages within Google Groups.",
     );
 
   groupSettingsSheet
-    .getRange("S1")
+    .getRange("T1")
     .setNote(
       "Allows a member to be notified if their message to the group is denied by the group owner. Possible values are:\n\n" +
         "true: Send a notification to the message author when their message is rejected. The content of the notification is set in the `defaultMessageDenyNotificationText` property.\n\n" +
@@ -221,7 +230,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("T1")
+    .getRange("U1")
     .setNote(
       "Enables the group to be included in the Global Address List. For more information, see the help center. Possible values are:\n" +
         "   true: Group is included in the Global Address List.\n" +
@@ -229,7 +238,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("U1")
+    .getRange("V1")
     .setNote(
       "Enables members to post messages as the group. Possible values are:\n" +
         "   true: Group member can post messages using the group's email address instead of their own email address. Messages appear to originate from the group itself.\n" +
@@ -238,7 +247,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("V1")
+    .getRange("W1")
     .setNote(
       "Enables the group to be included in the Global Address List. For more information, see the help center. Possible values are:\n" +
         "   true: Group is included in the Global Address List.\n" +
@@ -246,7 +255,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("W1")
+    .getRange("X1")
     .setNote(
       "Permission to leave the group. Possible values are:\n" +
         "   ALL_MANAGERS_CAN_LEAVE: Group managers can leave the group.\n" +
@@ -255,7 +264,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("X1")
+    .getRange("Y1")
     .setNote(
       "Permission to contact owner of the group via web UI. Possible values are:\n" +
         "   ALL_IN_DOMAIN_CAN_CONTACT: Anyone within the same domain as the group can contact the owner.\n" +
@@ -265,7 +274,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("Y1")
+    .getRange("Z1")
     .setNote(
       "Indicates if favorite replies should be displayed before other replies.\n" +
         "   true: Favorite replies are displayed at the top, above other replies.\n" +
@@ -273,7 +282,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("Z1")
+    .getRange("AA1")
     .setNote(
       "Specifies who can deny membership to users. This permission will be deprecated once it is merged into the whoCanModerateMembers setting.\n" +
         "   ALL_MEMBERS: All group members can deny membership requests.\n" +
@@ -283,7 +292,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("AA1")
+    .getRange("AB1")
     .setNote(
       "Specifies who can manage members (approve/deny membership requests, remove members). Possible values are:\n" +
         "   ALL_MEMBERS: All group members can manage members.\n" +
@@ -293,7 +302,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("AB1")
+    .getRange("AC1")
     .setNote(
       "Specifies who can moderate content (approve/reject/remove messages). Possible values are:\n" +
         "   ALL_MEMBERS: All group members can moderate content.\n" +
@@ -303,7 +312,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("AC1")
+    .getRange("AD1")
     .setNote(
       "Specifies who can moderate metadata (tags, topics). Possible values are:\n" +
         "   ALL_MEMBERS: All group members can moderate metadata.\n" +
@@ -314,7 +323,7 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("AD1")
+    .getRange("AE1")
     .setNote(
       "Specifies whether the group has a custom role that's included in one of the settings being merged. This field is read-only and updates to it are ignored.\n" +
         "   true: The group has a custom role included in the settings being merged.\n" +
@@ -322,20 +331,11 @@ function getGroupsSettings() {
     );
 
   groupSettingsSheet
-    .getRange("AE1")
+    .getRange("AF1")
     .setNote(
       "Specifies whether a collaborative inbox will remain turned on for the group. Possible values are:\n" +
         "   true: The group will continue to use a collaborative inbox where members can see and manage emails sent to the group address.\n" +
         "   false: The group will not use a collaborative inbox. Emails sent to the group address will only be delivered to group owners.",
-    );
-
-  groupSettingsSheet
-    .getRange("AF1")
-    .setNote(
-      "Specifies the set of users for whom this group is discoverable. Possible values are:\n" +
-        "   ANYONE_CAN_DISCOVER: The group is discoverable by anyone searching for groups.\n" +
-        "   ALL_IN_DOMAIN_CAN_DISCOVER: The group is only discoverable by users within the same domain as the group.\n" +
-        "   ALL_MEMBERS_CAN_DISCOVER: The group is only discoverable by existing members of the group.",
     );
 
   groupSettingsSheet
@@ -345,6 +345,211 @@ function getGroupsSettings() {
         "   DEFAULT_SELF: When a member with 'post as group' permission sends a message, it will appear to be sent from their own email address.\n" +
         "   GROUP: When a member with 'post as group' permission sends a message, it will appear to be sent from the group's email address.",
     );
+
+const rangeD = groupSettingsSheet.getRange("D2:D");
+const rule1 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("INVITED_CAN_JOIN")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeD])
+  .build();
+const rule2 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("CAN_REQUEST_TO_JOIN")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeD])
+  .build();
+const rule3 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_IN_DOMAIN_CAN_JOIN")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeD])
+  .build();
+
+const rangeE = groupSettingsSheet.getRange("E2:E");
+const rule4 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ANYONE_CAN_POST")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeE])
+  .build();
+const rule5 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MANAGERS_CAN_POST")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeE])
+  .build();
+const rule6 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_IN_DOMAIN_CAN_POST")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeE])
+  .build();
+const rule7 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MEMBERS_CAN_POST")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeE])
+  .build();
+const rule8 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_OWNERS_CAN_POST")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeE])
+  .build();  
+const rule9 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("NONE_CAN_POST")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeE])
+  .build();
+
+const rangeF = groupSettingsSheet.getRange("F2:F");
+const rule10 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_IN_DOMAIN_CAN_VIEW")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeF])
+  .build();
+const rule11 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MEMBERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeF])
+  .build();
+const rule12 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MANAGERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeF])
+  .build();
+const rule13 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_OWNERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeF])
+  .build();
+
+const rangeG = groupSettingsSheet.getRange("G2:G");
+const rule14 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ANYONE_CAN_VIEW")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeG])
+  .build();
+const rule15 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_IN_DOMAIN_CAN_VIEW")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeG])
+  .build();
+const rule16 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MEMBERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeG])
+  .build();
+const rule17 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MANAGERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeG])
+  .build();
+const rule18 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_OWNERS_CAN_VIEW")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeG])
+  .build();
+
+const rangeH = groupSettingsSheet.getRange("K2:K");
+const rule19 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("True")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeH])
+  .build();
+const rule20 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("False")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeH])
+  .build();
+const rangeK = groupSettingsSheet.getRange("M2:M");
+const rule21 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("False")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeK])
+  .build();
+const rule22 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("True")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeK])
+  .build();  
+
+const rangeM = groupSettingsSheet.getRange("N2:N");
+const rule23 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("MODERATE_NONE")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeM])
+  .build();
+const rule24 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("MODERATE_ALL_MESSAGES")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeM])
+  .build();
+const rule25 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("MODERATE_NON_MEMBERS")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeM])
+  .build();
+const rule26 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("MODERATE_NEW_MEMBERS")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeM])
+  .build();
+
+const rangeN = groupSettingsSheet.getRange("O2:O");
+const rule27 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALLOW")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeN])
+  .build();
+const rule28 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("MODERATE")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeN])
+  .build();
+const rule29 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("SILENTLY_MODERATE")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeN])
+  .build();
+const rule30 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("REJECT")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeN])
+  .build();
+
+const rangeAF = groupSettingsSheet.getRange("H2:H");
+const rule31 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ANYONE_CAN_DISCOVER")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeAF])
+  .build();
+const rule32 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_IN_DOMAIN_CAN_DISCOVER")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeAF])
+  .build();
+const rule33 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("ALL_MEMBERS_CAN_DISCOVER")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeAF])
+  .build();
+
+const rangeL = groupSettingsSheet.getRange("L2:L");
+const rule34 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("False")
+  .setBackground("#ffc7ce") // Light red
+  .setRanges([rangeL])
+  .build();
+const rule35 = SpreadsheetApp.newConditionalFormatRule()
+  .whenTextContains("True")
+  .setBackground("#c6efce") // Light green
+  .setRanges([rangeL])
+  .build();
+
+
+const rules = [
+  rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8,
+  rule9, rule10, rule11, rule12, rule13, rule14, rule15, rule16, rule17, rule18, rule19, rule20,
+  rule21, rule22, rule23, rule24, rule25, rule26, rule27, rule28, rule29, rule30,
+  rule31, rule32, rule33,rule34, rule35
+];
+
+groupSettingsSheet.setConditionalFormatRules(rules);
+
 
   let pageToken;
 
@@ -367,6 +572,7 @@ function getGroupsSettings() {
           settings.whoCanPostMessage,
           settings.whoCanViewMembership,
           settings.whoCanViewGroup,
+          settings.whoCanDiscoverGroup,          
           settings.allowExternalMembers,
           settings.allowWebPosting,
           settings.primaryLanguage,
@@ -391,7 +597,6 @@ function getGroupsSettings() {
           settings.whoCanAssistContent,
           settings.customRolesEnabledForSettingsToBeMerged,
           settings.enableCollaborativeInbox,
-          settings.whoCanDiscoverGroup,
           settings.defaultSender,
         ]);
       }
