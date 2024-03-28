@@ -74,5 +74,7 @@ function fetchInfo() {
   getOrgUnits();
   getSharedDrives();
   getGroupMembers();
-  getGroupsSettings();  
+  getGroupsSettings();
+    // Display alert notification when all scripts have completed
+  SpreadsheetApp.getUi().alert('All API scripts have successfully completed.');
 }
