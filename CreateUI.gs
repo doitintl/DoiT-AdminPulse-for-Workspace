@@ -33,7 +33,7 @@ function onOpen(e) {
     .addToUi();
 
   // Show alert message
-  SpreadsheetApp.getUi().alert('Welcome to the Security Checklist for Workspace Admins! Make a Copy of this document so that you owner. Click on the "Extensions" menu above to access the app functions to get started.');
+  SpreadsheetApp.getUi().alert('Welcome to the Security Checklist for Workspace Admins!\n\nThe first step is to Make a Copy of this document so you are the owner if you haven\'t done so already.\n\nIf the checklists have already been completed for you, consider running all other scripts from the Extensions menu for useful API reports.');
 }
 
 // Function to run all scripts with a confirmation prompt
