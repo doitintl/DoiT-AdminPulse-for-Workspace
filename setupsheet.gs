@@ -1,59 +1,50 @@
-//Script will delete existing sheets and copy each sheet from the public template file.
-
 function setupSheet() {
-  // Prompt the user for confirmation
-  var ui = SpreadsheetApp.getUi();
-  var response = ui.alert('Warning', 'This will delete any existing data in the sheet, including any notes or completed checklists. Do you want to continue?', ui.ButtonSet.YES_NO);
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert('Warning', 'This will delete any existing data in the sheet, including any notes or completed checklists. Do you want to continue?', ui.ButtonSet.YES_NO);
 
-  // Check user's response
   if (response === ui.Button.NO) {
-    // If the user chooses not to continue, exit the function
     return;
   }
 
-  // Get the domain address
-  var domain = Session.getActiveUser().getEmail().split('@')[1];
+  const domain = Session.getActiveUser().getEmail().split('@')[1];
 
-  // Create a copy of the template file
-  var templateId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
-  var copiedFile = DriveApp.getFileById(templateId).makeCopy();
-  var copiedFileId = copiedFile.getId();
+  const templateId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
+  const copiedFile = DriveApp.getFileById(templateId).makeCopy();
+  const copiedFileId = copiedFile.getId();
 
-  // Get all sheets from the copied template file
-  var templateSpreadsheet = SpreadsheetApp.openById(copiedFileId);
-  var templateSheets = templateSpreadsheet.getSheets();
+  const templateSpreadsheet = SpreadsheetApp.openById(copiedFileId);
+  const templateSheets = templateSpreadsheet.getSheets();
 
-  // Get the current active spreadsheet (user's sheet)
-  var currentSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const currentSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Loop through each sheet in the template file and copy it to the user's sheet
-  for (var i = 0; i < templateSheets.length; i++) {
-    var sheetName = templateSheets[i].getName();
+  for (let i = 0; i < templateSheets.length; i++) {
+    const sheetName = templateSheets[i].getName();
 
-    // Check if a sheet with the same name already exists in the user's sheet
-    var existingSheet = currentSpreadsheet.getSheetByName(sheetName);
+    const existingSheet = currentSpreadsheet.getSheetByName(sheetName);
 
-    // If a sheet with the same name exists, delete it
     if (existingSheet) {
       currentSpreadsheet.deleteSheet(existingSheet);
     }
 
-    // Copy the sheet from the template file to the user's sheet
     templateSheets[i].copyTo(currentSpreadsheet).setName(sheetName);
   }
 
-  // Delete "Sheet1" if it exists in the user's sheet
-  var sheet1 = currentSpreadsheet.getSheetByName('Sheet1');
+  const sheet1 = currentSpreadsheet.getSheetByName('Sheet1');
   if (sheet1) {
     currentSpreadsheet.deleteSheet(sheet1);
   }
 
-  // Set the document title to "[domain] Security Checklist for Workspace Admins"
   currentSpreadsheet.rename('[' + domain + '] Security Checklist for Workspace Admins');
 
-  // Inform the user that the setup is complete
-  ui.alert('Sheet Setup Complete', 'The sheets have been successfully set up.', ui.ButtonSet.OK);
-
-  // Close and delete the copied template file
   copiedFile.setTrashed(true);
+
+  const setupCompleteAlert = ui.alert('Sheet Setup Complete',
+    'Welcome to the Security Checklist for Workspace Admins!\n\n' +
+    'This tool provides a comprehensive checklist of security controls for Business and Enterprise organizations.\n\n' +
+    'To use this tool and all its functions, you must have a Super Admin account.\n\n' +
+    'Many settings do not have an API, so we have included links to Google\'s documentation, best practice recommendations, and the relevant section of the admin console.\n\n' +
+    'To begin, run the read-only API reports using the Run All Scripts button under Extensions > Security Checklist for Workspace Admins. These reports will help you answer questions on the Security Checklist.\n\n' +
+    'After running the API reports, complete the checklist of security controls and take notes on areas where your organization can improve its security posture.\n\n' +
+    'For developer support or assistance with reviewing your environment and understanding the findings, use the Get Support button in the Extensions menu.',
+    ui.ButtonSet.OK);
 }
