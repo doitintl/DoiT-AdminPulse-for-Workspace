@@ -6,7 +6,7 @@
     "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/apps.groups.settings",
-    "https://www.googleapis.com/auth/admin.directory.user",
+    "https://www.googleapis.com/auth/admin.directory.user.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.security",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/apps.licensing",
