@@ -12,6 +12,8 @@ function onInstall(e) {
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
+    .addItem('Activate Application', 'activateApplication')
+    .addSeparator()    
     .addItem('Set up or Refresh Sheet', 'setupSheet')
     .addSeparator()
     .addItem('Run all scripts', 'promptRunAllScripts')
@@ -31,17 +33,7 @@ function onOpen(e) {
     .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
-
-  // Show alert message
-  SpreadsheetApp.getUi().alert('Welcome to the Security Checklist for Workspace Admins!\n\n' +
-  'This tool provides a comprehensive checklist of security controls for Business and Enterprise organizations.\n\n' +
-  'To use this tool and all its functions, you must have a Super Admin account.\n\n' +
-  'Many settings do not have an API, so we have included links to Google\'s documentation, best practice recommendations, and the relevant section of the admin console.\n\n' +
-  'To begin, run the read-only API reports using the Run All Scripts button under Extensions > Security Checklist for Workspace Admins. These reports will help you answer questions on the Security Checklist.\n\n' +
-  'After running the API reports, complete the checklist of security controls and take notes on areas where your organization can improve its security posture.\n\n' +
-  'For developer support or assistance with reviewing your environment and understanding the findings, use the Get Support button in the Extensions menu.');
 }
-
 // Function to run all scripts with a confirmation prompt
 function promptRunAllScripts() {
   var response = Browser.msgBox(
@@ -80,7 +72,16 @@ function fetchInfo() {
   getOrgUnits();
   getSharedDrives();
   getGroupMembers();
-  getGroupsSettings();
-    // Display alert notification when all scripts have completed
+  getGroupsSettings();  
+  // Display alert notification when all scripts have completed
   SpreadsheetApp.getUi().alert('All API scripts have successfully completed.');
+}
+
+function activateApplication() {
+  const ui = SpreadsheetApp.getUi();
+  const result = ui.alert(
+    'Activate Application',
+    'Application activated and connected to your Google Account. Next, use the "Set up or Refresh Sheet" button from the extensions menu.',
+    ui.ButtonSet.OK
+  );
 }
