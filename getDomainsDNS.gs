@@ -129,7 +129,7 @@ sheet.getRange('A2').setValue('google.com');
 
   const rangeG = sheet.getRange("G2:G" + lastRow);
   const ruleG = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("v=dkim")
+    .whenTextContains("v=dmarc")
     .setBackground("#b7e1cd")
     .setRanges([rangeG])
     .build();
@@ -153,7 +153,7 @@ sheet.getRange('A2').setValue('google.com');
     .build();
 
   const ruleGRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("v=dkim")
+    .whenTextDoesNotContain("v=dmarc")
     .setBackground("#ffb6c1")
     .setRanges([rangeG])
     .build();
