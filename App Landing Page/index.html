@@ -1,102 +1,255 @@
-<!DOCTYPE html>
-<html lang="en">
-
+<!doctype html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="https://workspacesecurity.app/images/favicon-32x32.png">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arial:wght@400&display=swap">
-    <link rel="stylesheet" href="https://storage.googleapis.com/workspacesecurity.app/styles.css">
-    <title>Security Checklist for Workspace Admins</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="./output.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="./logo.svg">
+  <title>Security Checklist for Workspace Admins</title>
 </head>
+<style>
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    font-family: "Montserrat", sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
 
+  p {
+    line-height: 1.5;
+    font-size: 14px;
+  }
+</style>
 <body>
-<header>
-    <h1 style="display: inline-block; vertical-align: middle;">Security Checklist for Workspace Admins</h1>
-</header>
-
-<nav>
-    <ul>
-        <li><a href="https://workspacesecurity.app/">Home</a></li>
-        <li><a href="https://workspacesecurity.app/App_Preview.html">App Preview Images and Features</a></li>
-        <li><a href="https://workspacesecurity.app/PrivacyPolicy.html">Privacy Policy</a></li>
-    </ul>
-</nav>
-
-<section id="about">
-    <div>
-        <p>This comprehensive checklist, housed in Google Sheets™ and maintained by <a href="https://dustinchristlieb.com">Dustin Christlieb</a>, is tailored for Super Admins seeking a security review of Google Workspace and Cloud Identity environments.</p>
-        <p>Drawing inspiration from the renowned <a href="https://github.com/GAM-team/GAM">GAM</a>, this application harnesses the power of the <a href="https://developers.google.com/admin-sdk/reference-overview">Admin SDK</a> to collect asset data seamlessly and integrate it into a Google Sheet. Currently, it focuses on read-only functionality, ensuring no modifications to API settings.</p>
-        <p>Delve into the appscript code on our <a href="https://github.com/doitintl/Security-Checklist-for-Workspace-Admins">GitHub repository</a> for insights into its architecture and potential future developments as a Google Sheets™ Editor add-on.</p>
-        <p>Access a <a href="https://docs.google.com/spreadsheets/d/1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8/copy">view copy of the live checklist and appscript code</a> for a comprehensive overview.</p>
-        <p>For personalized assistance or to review your findings, feel free to reach out to Dustin Christlieb at <a href="mailto:workspace-security@doit.com">workspace-security@doit.com</a>.</p>
+  <div class="hidden md:hidden fixed z-50 flex justify-end top-0 left-0 w-full h-[100vh] bg-[rgba(0,0,0,.5)]" id="mobileMenu">
+    <div class="bg-primary w-[300px] h-full" id="menuBar">
+      <div class="flex justify-end mt-4 mr-4">
+        <img src="./close.svg" id="closeMenu" width="60" alt="">
+      </div>
+      <ul class="w-full mt-4">
+        <li class="p-4 border-b border-white">
+          <a href="#features" class="text-white font-medium mobile-link">Features</a>
+        </li>
+        <li class="p-4 border-b border-white">
+          <a href="#how-to-use" class="text-white font-medium mobile-link">How to use</a>
+        </li>
+        <li class="p-4 border-b border-white">
+          <a href="#videos" class="text-white font-medium mobile-link">Videos</a>
+        </li>
+        <li class="p-4 border-b border-white">
+          <a href="https://www.doit.com/privacy/" class="text-white font-medium mobile-link">Privacy</a>
+        </li>
+      </ul>
     </div>
-</section>
-
-<section id="features">
-    <h2>Key Features</h2>
-    <div class="features-container">
-        <div class="feature-box">
-            <h3>Comprehensive Security Settings</h3>
-            <p>Access a detailed checklist of settings with direct links to Google's Admin Console for easy configuration.</p>
+  </div>
+  <nav class="bg-primary py-[17px]">
+    <div class="mx-auto p-4 lg:p-0 max-w-[1179px] flex justify-between items-center">
+      <img src="./logo.svg" alt="" class="w-[49px]" >
+      <div class="flex items-center">
+        <img src="./burger-icon.svg" width="60" class="md:hidden" id="burger">
+        <ul class="p-0 m-0 gap-8 hidden md:flex">
+          <li>
+            <a href="#features" class="text-white font-medium">Features</a>
+          </li>
+          <li>
+            <a href="#how-to-use" class="text-white font-medium">How to use</a>
+          </li>
+          <li>
+            <a href="#videos" class="text-white font-medium">Videos</a>
+          </li>
+          <li>
+            <a href="https://www.doit.com/terms/#:~:text=Your%20Personal%20Information%20is%20gathered,of%20the%20Site%20and%20Services" class="text-white font-medium">Privacy</a>
+          </li>
+        </ul>
+        <div class="h-[36px] w-[1px] bg-white mx-[35px]"></div>
+        <div class="flex">
+          <span class="text-white font-light">Brought to you by</span>
+          <a href="https://doit.com" target="_blank">
+            <img src="./doit-logo.svg" class="ml-5" width="59" alt="">
+          </a>
         </div>
-        <div class="feature-box">
-            <h3>User Audit</h3>
-            <p>Track user activities including last sign-in date, status, 2SV enrollment, and admin privileges.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Domain & DNS Audit</h3>
-            <p>Ensure your domain conforms to best practices by auditing MX, SPF, DKIM, and DMARC records.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Google Group Settings Audit</h3>
-            <p>Review Google Group™ settings to ensure proper access controls.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Google Groups Membership Audit</h3>
-            <p>Review Google Group™ memberships for both internal and external accounts.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Mobile Device Audit</h3>
-            <p>Monitor mobile devices connected to your Google Workspace for security compliance.</p>
-        </div>
-        <div class="feature-box">
-            <h3>License Audit</h3>
-            <p>Track licenses to optimize usage and reduce costs.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Shared Drive Settings Audit</h3>
-            <p>Review settings for Shared Drives to ensure data security.</p>
-        </div>
-        <div class="feature-box">
-            <h3>OAuth Token Audit</h3>
-            <p>Review OAuth tokens for third-party app access to your Google Workspace.</p>
-        </div>
-        <div class="feature-box">
-            <h3>App Passwords Audit</h3>
-            <p>Review user configured app passwords for less secure apps.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Organizational Unit Audit</h3>
-            <p>Review organizational units for effective organization management.</p>
-        </div>
-        <div class="feature-box">
-            <h3>Get Help</h3>
-            <p>Reach out for personalized assistance with the Security Checklist.</p>
-        </div>
+      </div>
     </div>
-</section>
+  </nav>
+  <main class="mx-auto max-w-[1179px] mt-4 lg:mt-20">
+    <div class="grid grid-cols-1 lg:grid-cols-12 p-4 xl:p-0">
+      <div class="col-span-7 pr-10 mb-8 lg:mb-0">
+        <h1 class="font-bold text-[48px] leading-tight">Security Checklist for Workspace Admins</h1>
+        <p class="mt-4 font-light leading-[1.75]">This comprehensive checklist, housed in Google Sheets and maintained by <a href="https://dustinchristlieb.com/" class="text-doit-pink font-medium">Dustin Christlieb</a>, is tailored for Super Admins seeking a security review of Google Workspace and Cloud Identity environments. Drawing inspiration from the renowned <a href="https://github.com/GAM-team/GAM" class="text-doit-pink font-medium">GAM</a>, this application harnesses the power of the <a href="https://developers.google.com/admin-sdk/reference-overview" class="text-doit-pink font-medium">Admin SDK</a> to collect asset data seamlessly and integrate it into a Google Sheet. Currently, it focuses on read-only functionality, ensuring no modifications to API settings.
+          <br><br>
+          Delve into the appscript code on our <a href="https://github.com/doitintl/Security-Checklist-for-Workspace-Admins" class="text-doit-pink font-medium">GitHub repository</a> for insights into its architecture and potential future developments as a Google Sheets Editor add-on. Access a <a href="https://docs.google.com/spreadsheets/d/1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8/copy" class="text-doit-pink font-medium">view copy of the live checklist and appscript code</a> for a comprehensive overview.</p>
+          <div class="mt-8 flex gap-3">
+            <a href="#" class="bg-doit-pink text-[14px] text-white font-bold py-3 px-8 rounded-full">View in Marketplace</a>
+            <a href="mailto:workspace-Security@doit.com" class="bg-primary text-[14px] text-white font-bold py-3 px-8 rounded-full">Contact Developer</a>
+          </div>
+      </div>
+      <div class="col-span-5">
+        <video width="100%" controls>
+          <source src="" type="video/mp4">
+          <source src="" type="video/ogg">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </div>
+    <div class="mt-20 p-4 xl:p-0" id="features">
+      <h2 class="font-bold text-[32px] leading-none">Key features</h2>
+      <div class="mt-8 grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Comprehensive Security Settings</h3>
+          <p class="font-light mt-4">Access a detailed checklist of settings with direct links to Google's Admin Console for easy configuration.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">User Audit</h3>
+          <p class="font-light mt-4">Track user activities including last sign-in date, status, 2SV enrollment, and admin privileges.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Domain & DNS Audit</h3>
+          <p class="font-light mt-4">Ensure your domain conforms to best practices by auditing MX, SPF, DKIM, and DMARC records.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Google Group Settings Audit</h3>
+          <p class="font-light mt-4">Review Google Group™ memberships for both internal and external accounts.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Google Groups Membership Audit</h3>
+          <p class="font-light mt-4">Review Google Group™ memberships for both internal and external accounts.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Mobile Device Audit</h3>
+          <p class="font-light mt-4">Monitor mobile devices connected to your Google Workspace for security compliance.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">License Audit</h3>
+          <p class="font-light mt-4">Track licenses to optimize usage and reduce costs.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Shared Drive Settings Audit</h3>
+          <p class="font-light mt-4">Review settings for Shared Drives to ensure data security.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">OAuth Token Audit</h3>
+          <p class="font-light mt-4">Review OAuth tokens for third-party app access to your Google Workspace.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">App Passwords Audit</h3>
+          <p class="font-light mt-4">Review user configured app passwords for less secure apps.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Organizational Unit Audit</h3>
+          <p class="font-light mt-4">Review organizational units for effective organization management.</p>
+        </div>
+        <div class="shadow-md rounded-lg p-8 min-h-[212px]">
+          <h3 class="text-[18px] font-medium">Get Help</h3>
+          <p class="font-light mt-4">Reach out for personalized assistance with the Security Checklist.</p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-20 p-4 xl:p-0" id="how-to-use">
+      <h2 class="font-bold text-[32px] leading-none">How to use the tool</h2>
+      <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-1.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Getting Started</h3>
+            <p class="font-light mt-4">Make a copy of the public document and associated App Script, or Install the Google Sheets Extension from the Marketplace.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-2.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Admin instructions</h3>
+            <p class="font-light mt-4">Read the introduction popup and Admin instructions.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-3.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Setup Sheet</h3>
+            <p class="font-light mt-4">Run the Setup or Refresh Sheet function to get the most up todate copy of the checklist.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-4.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">API Inventory</h3>
+            <p class="font-light mt-4">Use the Run All Scripts function to inventory useful information from the Admin SDK.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-5.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Confrim external DNS query</h3>
+            <p class="font-light mt-4">Confrim your understanding that CloudFlare will be used to return DNS results.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-6.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Review API reports</h3>
+            <p class="font-light mt-4">Review helpful API information about your enviorment.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-7.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Security Checklist</h3>
+            <p class="font-light mt-4">Complete the Security Checklist by using the quick access links to check Admin Console configurations and take notes on the findings.</p>
+          </div>
+        </div>
+        <div class="shadow-md rounded-lg overflow-hidden">
+          <img loading="lazy" src="./step-8.jpg" class="w-full">
+          <div class="p-8">
+            <h3 class="text-[18px] font-medium">Get Support</h3>
+            <p class="font-light mt-4">Use the Get Support function to contact DoiT International for subject matter assistance.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-20 p-4 xl:p-0" id="videos">
+      <h2 class="font-bold text-[32px] leading-none">Video library</h2>
+      <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="min-h-[220px] bg-[#eee]"></div>
+        <div class="min-h-[220px] bg-[#eee]"></div>
+        <div class="min-h-[220px] bg-[#eee]"></div>
+      </div>
+      <div class="text-center my-12">
+        © 2024 All rights reserved    |    DoiT International    |    <a class="text-doit-pink" href="https://doit.com/privacy">Privacy Policy</a>    |    <a class="text-doit-pink" href="https://doit.com">www.doit.com</a>
+      </div>
+    </div>
+  </main>
+  <script>
+    const burger = document.getElementById('burger');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const closeMobileMenu = document.getElementById('closeMenu');
+    const mobileLinks = document.querySelectorAll('.mobile-link');
+    const menuBar = document.getElementById('menuBar');
 
-<section id="videos">
-    <h2>How to Use</h2>
-    <!-- Include instructional videos demonstrating how to use the add-on here -->
-</section>
+    burger.addEventListener('click', function(){
+      mobileMenu.classList.toggle('hidden');
+    })
+    
+    closeMobileMenu.addEventListener('click', function(){
+      mobileMenu.classList.add('hidden');
+    })
 
-<footer>
-    <p>&copy; 2024 <a href="https://workspacesecurity.app">workspacesecurity.app</a> All rights reserved.</p>
-    <p>Privacy Policy: <a href="https://workspacesecurity.app/PrivacyPolicy.html">Privacy Policy</a></p>
-</footer>
+    mobileMenu.addEventListener('click', function(){
+      mobileMenu.classList.add('hidden');
+    })
 
+    menuBar.addEventListener('click', function(e){
+      e.stopPropagation();
+    })
+
+    mobileLinks.forEach(function(item){
+      item.addEventListener('click', function(){
+        mobileMenu.classList.add('hidden');
+      })
+    })
+  </script>
 </body>
-
 </html>

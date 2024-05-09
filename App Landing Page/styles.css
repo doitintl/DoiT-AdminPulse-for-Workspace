@@ -1,121 +1,90 @@
-/* Add this CSS to your existing stylesheet or in a <style> tag in the head of your HTML file */
 body {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Arial', sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f5f5f5; /* Light gray background */
-    color: #333; /* Dark gray text color */
+    background-color: #f0f0f0;
 }
 
-header, footer {
-    background-color: #000433; /* header and footer background color */
-    color: #fff; /* text color */
-    text-align: center;
-    padding: 1em 0;
-    margin: 0; /* remove default margin */
-    width: 100%; /* fill the width of the page */
-    display: block; /* ensure these elements behave as block-level elements */
+nav.navbar {
+    background-color: #333;
+    padding: 10px;
 }
 
-nav {
-    background-color: #000433;
+nav .menu-icon {
+    cursor: pointer;
     color: #fff;
-    text-align: left;
-    padding: 0.5em;
-    float: left;
-    width: 100%;
 }
 
-nav ul {
-    list-style-type: none;
-    margin: 0;
+nav .menu {
+    list-style: none;
     padding: 0;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    margin: 0;
+    display: none;
+}
+
+nav .menu li {
+    display: block;
+    margin: 10px 0;
 }
 
 nav a {
     text-decoration: none;
     color: #fff;
-    margin-right: 1em;
-    padding: 0.5em;
 }
 
-nav ul:hover {
-    max-height: 200px;
-    overflow: hidden;
-    transition: max-height 0.3s ease-in-out;
-}
-
-.logo {
-    max-width: 50px; /* Set the width of the logo placeholder */
-    height: auto;
-    display: inline-block;
-    vertical-align: middle;
-    margin-right: 20px; /* Add some spacing between the logo and the header text */
-}
-
-section {
-    margin: 2em;
-    border: 2px solid #000433;
-    border-radius: 10px;
-    padding: 1em;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+header {
     display: flex;
-    flex-direction: column; /* Improved separation for section content */
+    align-items: center;
+    background-color: #333;
+    color: #fff;
+    padding: 10px;
 }
 
-section h2 {
-    margin-bottom: 0.5em; /* Additional margin below section headers */
+.profile-picture {
+    border-radius: 50%;
+    margin-right: 10px;
 }
 
-/* Add new styles for privacy policy content */
-section p {
-    margin-bottom: 1em;
+.header-content {
+    flex: 1;
 }
 
-.features-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-}
-
-.feature-box {
-    border: 2px solid #000433;
-    border-radius: 10px;
-    padding: 1em;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-.feature-box h3 {
-    margin-bottom: 0.5em;
-    color: #000433;
-}
-
-.feature-box p {
+header h1 {
     margin: 0;
 }
 
-.image-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
+section {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.image-box {
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    margin-bottom: 10px;
+}
+
+a {
+    text-decoration: none;
+    color: #007BFF;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+footer {
     text-align: center;
-    margin-bottom: 20px;
-}
-
-.image-box img {
-    max-width: 100%;
-    height: auto;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-}
-
-.image-box p {
-    margin-top: 0.5em;
-    color: #666;
+    padding: 10px;
+    background-color: #333;
+    color: #fff;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
 }
