@@ -1,10 +1,10 @@
 # Security Checklist for Workspace Admins
 
-A tool for Workspace administrators to review their security posture and inventory the admin SDK.
+A tool by DoiT for Workspace administrators to review their security posture and inventory the admin SDK.
 
 ## Overview:
 
-This is a free and open-source tool developed for Google Workspace Administartors to conduct a comprehensive security review of their organization's Google Workspace or Cloud Identity environments.
+This is a free and open-source tool by DoiT developed for Google Workspace Administrators to conduct a comprehensive security review of their organization's Google Workspace or Cloud Identity environments.
 
 The tool has two main components: The checklist of security settings with links to documentation as well as to the relevant setting in the admin console, and read-only access to the Admin SDK to inventory settings for users, groups, OAuth tokens and more.
 
