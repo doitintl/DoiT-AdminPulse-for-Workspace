@@ -36,6 +36,10 @@ function getMobileDevices() {
   rules.push(rule);
   mobileDeviceSheet.setConditionalFormatRules(rules);
 
+  const lastRow = mobileDeviceSheet.getLastRow();
+  const filterRange = mobileDeviceSheet.getRange('B1:G' + lastRow);  // Filter columns B through G (including header)
+  filterRange.createFilter(); 
+
   const customerId = "my_customer";
 
   let rows = [];

@@ -160,6 +160,21 @@ sheet.getRange('A2').setValue('google.com');
 
   const rules = [ruleD, ruleE, ruleF, ruleG, ruleDRed, ruleERed, ruleFRed, ruleGRed];
   sheet.setConditionalFormatRules(rules);
+
+  // --- Add Persistent Toast Notification ---
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    "If you use a third-party mail relay or a DNS flattener, records may be highlighted red and should be manually inspected.", 
+    "Instructions", 
+    -1 // Persistent toast
+  );
+
+  // --- Add Filter View ---
+// --- Add Filter View ---
+const filterRange = sheet.getRange('B1:G' + lastRow);  // Define the filter range
+filterRange.createFilter();
+
+  // --- Freeze Row 1 ---
+  sheet.setFrozenRows(1); 
 }
 
 function NSLookup(type, domain) { //Function takes DNS record type and domain as input

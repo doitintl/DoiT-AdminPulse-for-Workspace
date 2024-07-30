@@ -77,15 +77,23 @@ function getGroupMembers() {
 
     // Set up the sheet with headers and formatting
     groupMembersSheet.getRange("A1:F1").setValues([["Group Email", "Member Email", "Member Role", "Member Status", "Member Type", "Member ID"]]);
-    groupMembersSheet.getRange("A1:F1").setFontColor("#ffffff").setFontSize(10).setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight("bold");
-    groupMembersSheet.setFrozenRows(1);
-    // Delete columns G-Z
-    groupMembersSheet.deleteColumns(7, 20);
+    groupMembersSheet.getRange("A1:F1").setFontColor("#ffffff").setFontSize(10).setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight    ("bold");
+    groupMembersSheet.setFrozenRows(1); 
 
-    // Append data to the end of the sheet
+    // --- Add Note to Cell D1 ---
+    groupMembersSheet.getRange("D1").setNote("A yellow highlighted row indicates a group member from an external organization.");
+
+    // --- Add Filter View ---
     const lastRow = groupMembersSheet.getLastRow();
-    groupMembersSheet.getRange(lastRow + 1, 1, groupMembers.length, groupMembers[0].length).setValues(groupMembers);
+    const filterRange = groupMembersSheet.getRange('A1:F' + lastRow);  // Filter columns A through F, starting from row 1
+    filterRange.createFilter(); 
+
+    // Append data to the end of the sheet (starting from row 3)
+    groupMembersSheet.getRange(lastRow + 1, 1, groupMembers.length, groupMembers[0].length).setValues(groupMembers);  
     groupMembersSheet.autoResizeColumns(1, 6);
+
+    // Delete columns G-Z (starting from row 3)
+    groupMembersSheet.deleteColumns(7, 20); // G to Z
 
     // Apply conditional formatting
     const range = groupMembersSheet.getRange("D2:D" + (lastRow + groupMembers.length));

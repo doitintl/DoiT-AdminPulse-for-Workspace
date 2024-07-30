@@ -66,9 +66,6 @@ function getUsersList() {
   usersSheet.setFrozenRows(1); // Sets headers in sheet and freezes row
   usersSheet.getRange(2, 1, users.length, users[0].length).setValues(users); // Adds in user info starting from row 1
 
-  // Auto resize all columns
-  usersSheet.autoResizeColumns(1, usersSheet.getLastColumn());
-
   // Apply conditional formatting
   var rangeC = usersSheet.getRange("C2:C1000");
   var ruleC = SpreadsheetApp.newConditionalFormatRule()
@@ -88,6 +85,7 @@ function getUsersList() {
     .setBackground("#ffb6c1")
     .setRanges([rangeH])
     .build();
+  
   var ruleHFalse = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains("TRUE")
     .setBackground("#b7e1cd")
@@ -121,6 +119,14 @@ function getUsersList() {
   var rules = [ruleC, ruleCFalse, ruleH, ruleHFalse, ruleI, ruleIFalse, ruleD, ruleDFalse];
   usersSheet.setConditionalFormatRules(rules);
 
+  // --- Add Filter View ---
+  const lastRow = usersSheet.getLastRow(); 
+  const filterRange = usersSheet.getRange('C1:J' + lastRow);  // Filter columns C through J
+  filterRange.createFilter(); 
+
   // Create named range for columns B, C, D, and E
-  var namedRange = spreadsheet.setNamedRange('UserStatus', usersSheet.getRange('B2:E1000'));
+  const namedRange = spreadsheet.setNamedRange('UserStatus', usersSheet.getRange('B2:E' + lastRow));
+
+  // Auto resize all columns
+  usersSheet.autoResizeColumns(1, usersSheet.getLastColumn());  
 }

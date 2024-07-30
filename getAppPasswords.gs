@@ -61,6 +61,11 @@ function getAppPasswords() {
 
   // Auto resize the columns
   appPasswordsSheet.autoResizeColumns(1, 5);
+
+  // --- Add Filter View ---
+  const lastRow = appPasswordsSheet.getLastRow();
+  const filterRange = appPasswordsSheet.getRange('B1:E' + lastRow);  // Filter columns B through E (including header)
+  filterRange.createFilter();
 }
 
 function processUsers(users, sheet) {
@@ -75,16 +80,20 @@ function processUsers(users, sheet) {
     // Process app passwords
     if (asps && asps.items) {
       asps.items.forEach(function (asp) {
+        const creationTime = formatTimestamp(asp.creationTime); // Correctly pass timestamp to the formatting function
+        const lastTimeUsed = asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : ""; 
+
         data.push([
           asp.codeId,
           asp.name,
-          asp.creationTime,
-          asp.lastTimeUsed,
+          creationTime, // Push the formatted time, not the raw timestamp
+          lastTimeUsed, // Push the formatted time, not the raw timestamp
           user.primaryEmail,
         ]);
       });
     }
   });
+
 
   // Write the data to the sheet in chunks to reduce API calls
   const batchSize = 1000;
@@ -95,3 +104,11 @@ function processUsers(users, sheet) {
     }
   }
 }
+
+//The formatTimestamp function below is not working correctly
+
+function formatTimestamp(timestamp) {
+  const date = new Date(timestamp / 1000); // Divide by 1000 if timestamp is in milliseconds
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"); // Format in desired format
+}
+

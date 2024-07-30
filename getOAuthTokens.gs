@@ -69,6 +69,9 @@ function getTokens() {
   
   // Hide column F
   oAuthTokenSheet.hideColumns(6);
+
+  // Add note to cell G1
+  oAuthTokenSheet.getRange("G1").setNote("A light red highlighted row indicates the app uses a restricted or sensitive scope.");
   
   // Apply conditional formatting
   const range = oAuthTokenSheet.getRange('A2:G999');
@@ -123,6 +126,11 @@ function getTokens() {
   console.log("Tokens written to Sheet Users: %s", tokens.length);
   const dataRange = oAuthTokenSheet.getRange(2, 1, tokens.length, tokens[0].length);
   dataRange.setValues(tokens);
+
+  // --- Add Filter View ---
+  const lastRow = oAuthTokenSheet.getLastRow();
+  const filterRange = oAuthTokenSheet.getRange('A1:G' + lastRow);  // Filter columns A through G, starting from row 1
+  filterRange.createFilter();  
   
   // Auto resize columns A, D, E
   oAuthTokenSheet.autoResizeColumns(1, 1);
