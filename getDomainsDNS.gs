@@ -163,7 +163,7 @@ sheet.getRange('A2').setValue('google.com');
 
   // --- Add Persistent Toast Notification ---
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    "If you use a third-party mail relay or a DNS flattener, records may be highlighted red and should be manually inspected.", 
+    "If you use a third-party mail relay or a SPF flattener, records may be highlighted red and should be manually inspected.", 
     "Instructions", 
     -1 // Persistent toast
   );
