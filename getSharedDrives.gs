@@ -115,6 +115,11 @@ function getSharedDrives() {
   rules.push(rule2);
   sharedDrivesSheet.setConditionalFormatRules(rules);
 
+    // --- Add Filter View ---
+  const lastRow = sharedDrivesSheet.getLastRow(); 
+  const filterRange = sharedDrivesSheet.getRange('D1:J' + lastRow);  // Filter columns D through H
+  filterRange.createFilter(); 
+
   const endTime = new Date().getTime();
   const elapsed = (endTime - startTime) / 1000;
   Logger.log("Elapsed Seconds: " + elapsed);

@@ -614,6 +614,13 @@ groupSettingsSheet.setConditionalFormatRules(rules);
     }
     pageToken = page.nextPageToken;
   } while (pageToken);
+
+  // --- Add Filter View ---
+  const lastRow = groupSettingsSheet.getLastRow(); 
+  // Filter columns C through AG (3rd column to 33rd column)
+  const filterRange = groupSettingsSheet.getRange('C1:AG' + lastRow); 
+  filterRange.createFilter(); 
+
 }
 
 function getSettingsGroup(email) {

@@ -6,41 +6,31 @@
 function getAppPasswords() {
   const userEmail = Session.getActiveUser().getEmail();
   const domain = userEmail.split("@").pop();
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = spreadsheet.getSheets();
-  const lastSheetIndex = sheets.length;
 
-  // Create or clear the "App Passwords" sheet at the last index
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  // Check for existing sheet and handle duplicates
   let appPasswordsSheet = spreadsheet.getSheetByName("App Passwords");
   if (appPasswordsSheet) {
+    // If the sheet exists, delete it first
     spreadsheet.deleteSheet(appPasswordsSheet);
   }
-  appPasswordsSheet = spreadsheet.insertSheet("App Passwords", lastSheetIndex);
-  
-  // Set font to Montserrat
-  appPasswordsSheet.getRange("A1:Z1").setFontFamily("Montserrat");
 
-  // Add headers
-  const headers = ["CodeID", "Name", "Creation Time", "Last Time Used", "User"];
-  appPasswordsSheet.appendRow(headers);
+  // Create a new sheet with the desired name
+  appPasswordsSheet = spreadsheet.insertSheet("App Passwords", spreadsheet.getNumSheets());
 
-  // Apply formatting to the header row
-  const headerRange = appPasswordsSheet.getRange(1, 1, 1, headers.length);
-  headerRange.setBackground("#fc3165").setFontColor("white").setFontWeight("bold");
+  // Sheet styling (concise)
+  const headerRange = appPasswordsSheet.getRange("A1:E1");
+  headerRange.setFontFamily("Montserrat")
+    .setBackground("#fc3165")
+    .setFontColor("white")
+    .setFontWeight("bold")
+    .setValues([["CodeID", "Name", "Creation Time", "Last Time Used", "User"]]);
 
-  // Freeze the header row
   appPasswordsSheet.setFrozenRows(1);
 
-  // Delete columns F-Z. deleteColumns is called twice because (6, 20) was not deleting the last column. 
-  appPasswordsSheet.deleteColumns(7, 20);
-  appPasswordsSheet.deleteColumns(6);
-
-  // Set pagination parameters
   let pageToken = null;
-
   do {
-    // Make an API call to retrieve users
-    const options = {
+    const response = AdminDirectory.Users.list({
       domain: domain,
       customer: "my_customer",
       maxResults: 100,
@@ -48,50 +38,67 @@ function getAppPasswords() {
       viewType: "admin_view",
       orderBy: "email",
       pageToken: pageToken,
-    };
+    });
 
-    const response = AdminDirectory.Users.list(options);
+    if (response.users && response.users.length > 0) {
+      processUsers(response.users, appPasswordsSheet);
+    }
 
-    // Process the retrieved users
-    processUsers(response.users, appPasswordsSheet);
-
-    // Update the page token for the next iteration
     pageToken = response.nextPageToken;
   } while (pageToken);
 
-  // Auto resize the columns
+  // Auto-resize and add filter after data is populated
   appPasswordsSheet.autoResizeColumns(1, 5);
+  const lastRow = appPasswordsSheet.getLastRow();
+  appPasswordsSheet.getRange('B1:E' + lastRow).createFilter();
 }
 
 function processUsers(users, sheet) {
-  // Prepare data array
   const data = [];
 
-  // Iterate over the retrieved users
   users.forEach(function (user) {
-    // Retrieve app passwords for the user
     const asps = AdminDirectory.Asps.list(user.primaryEmail);
 
-    // Process app passwords
     if (asps && asps.items) {
       asps.items.forEach(function (asp) {
         data.push([
           asp.codeId,
           asp.name,
-          asp.creationTime,
-          asp.lastTimeUsed,
+          formatTimestamp(asp.creationTime),
+          asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "",
           user.primaryEmail,
         ]);
       });
     }
   });
 
-  // Write the data to the sheet in chunks to reduce API calls
-  const batchSize = 1000;
+  // Dynamic batch write:
+  const batchSize = 500; // Maximum batch size
+
   for (let i = 0; i < data.length; i += batchSize) {
-    const chunk = data.slice(i, i + batchSize);
-    if (chunk.length > 0) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, chunk.length, chunk[0].length).setValues(chunk);
-    }
+    const chunk = data.slice(i, i + batchSize); // Get the current chunk of data
+    const numRows = chunk.length; // Number of rows in the current chunk
+    
+    // Write only the necessary number of rows
+    sheet.getRange(sheet.getLastRow() + 1, 1, numRows, chunk[0].length) 
+         .setValues(chunk);
   }
 }
+
+// Corrected timestamp formatting:
+function formatTimestamp(timestampString) {
+  if (timestampString === "0" || timestampString === 0) {
+    return "Never Used"; // Handle 0 timestamps
+  } else if (typeof timestampString === "string" && timestampString.length >= 13) {
+    const timestamp = parseInt(timestampString.slice(0, 13));
+    const date = new Date(timestamp);
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"); 
+  } else {
+    Logger.log("Unknown timestamp format: " + timestampString);
+    return "Invalid Timestamp";
+  }
+}
+
+
+
+
