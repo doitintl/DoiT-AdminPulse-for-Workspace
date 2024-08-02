@@ -1,3 +1,17 @@
+/**This script leverages CloudFlare DNS in Google Sheets. https://github.com/cloudflare/cloudflare-docs/blob/production/content/1.1.1.1/other-ways-to-use-1.1.1.1/dns-in-google-sheets.md 
+
+The MIT License (MIT)
+
+Copyright (c) 2021 Cloudflare, Inc. 
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software *without restriction, 
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR *PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,  WHETHER IN AN ACTION OF CONTRACT, TORT *OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+**/
+
 function getDomainList(customer) {
   // Retrieve domain information from Admin Directory API
   const domainList = [];
@@ -163,7 +177,7 @@ sheet.getRange('A2').setValue('google.com');
 
   // --- Add Persistent Toast Notification ---
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    "If you use a third-party mail relay or a SPF flattener, records may be highlighted red and should be manually inspected.", 
+    "If you use a third-party mail gateway or a SPF flattener, records may be highlighted red and should be manually inspected.", 
     "Instructions", 
     -1 // Persistent toast
   );
