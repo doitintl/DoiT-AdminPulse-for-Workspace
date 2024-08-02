@@ -167,8 +167,6 @@ sheet.getRange('A2').setValue('google.com');
     "Instructions", 
     -1 // Persistent toast
   );
-
-  // --- Add Filter View ---
 // --- Add Filter View ---
 const filterRange = sheet.getRange('B1:G' + lastRow);  // Define the filter range
 filterRange.createFilter();
