@@ -38,7 +38,7 @@ function getMobileDevices() {
 
   const lastRow = mobileDeviceSheet.getLastRow();
   const filterRange = mobileDeviceSheet.getRange('B1:G' + lastRow);  // Filter columns B through G (including header)
-  filterRange.createFilter(); 
+  filterRange.createFilter();
 
   const customerId = "my_customer";
 
@@ -53,19 +53,22 @@ function getMobileDevices() {
       projection: "Full",
     });
 
-    const devices = page.mobiledevices;
+    // Check if the 'mobiledevices' property exists in the response
+    if (page && page.mobiledevices) { 
+      const devices = page.mobiledevices;
 
-    devices.forEach((device) => {
-      rows.push([
-        device.name,
-        device.email,
-        device.deviceId,
-        device.model,
-        device.type,
-        device.status,
-        device.lastSync,
-      ]);
-    });
+      devices.forEach((device) => {
+        rows.push([
+          device.name,
+          device.email,
+          device.deviceId,
+          device.model,
+          device.type,
+          device.status,
+          device.lastSync,
+        ]);
+      });
+    }
 
     pageToken = page.nextPageToken;
 
