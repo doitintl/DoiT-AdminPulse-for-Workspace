@@ -1,4 +1,4 @@
-function getOrgUnits(){
+function getOrgUnits() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheets = spreadsheet.getSheets();
   const lastSheetIndex = sheets.length;
@@ -30,35 +30,69 @@ function getOrgUnits(){
   headerRange.setBackground("#fc3165");
 
 
-  // Fetch and sort org units
-  const orgUnits = AdminDirectory.Orgunits.list("my_customer", {
+  // Fetch org units, explicitly including the root organizational unit
+  const orgUnitsResponse = AdminDirectory.Orgunits.list("my_customer", {
     type: "ALL",
-  }).organizationUnits;
-
-  // Sort the orgUnits array based on the orgUnitPath
-  orgUnits.sort((a, b) => {
-    // Split the paths into components
-    const pathA = a.orgUnitPath.split("/");
-    const pathB = b.orgUnitPath.split("/");
-
-    // Compare paths component by component
-    for (let i = 0; i < Math.min(pathA.length, pathB.length); i++) {
-      if (pathA[i] < pathB[i]) return -1; // a comes before b
-      if (pathA[i] > pathB[i]) return 1; // a comes after b
-    }
-
-    // If all components match, shorter path comes first
-    return pathA.length - pathB.length;
+    customer: 'my_customer' 
   });
 
+  let orgUnits = [];
+  if (orgUnitsResponse && orgUnitsResponse.organizationUnits) {
+    orgUnits = orgUnitsResponse.organizationUnits;
+
+    // Sort the orgUnits array based on the orgUnitPath, then by name (case-insensitive) if paths are equal
+    orgUnits.sort((a, b) => {
+      // Split the paths into components
+      const pathA = a.orgUnitPath.split("/");
+      const pathB = b.orgUnitPath.split("/");
+
+      // Compare paths component by component
+      for (let i = 0; i < Math.min(pathA.length, pathB.length); i++) {
+        if (pathA[i] < pathB[i]) return -1; 
+        if (pathA[i] > pathB[i]) return 1; 
+      }
+
+      // If all components match, sort by name (case-insensitive)
+      if (pathA.length === pathB.length) {
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      }
+
+      // If all components match and names are equal, shorter path comes first (unlikely)
+      return pathA.length - pathB.length;
+    });
+  } 
+  // If no OUs were fetched (meaning only the root OU exists), 
+  // extract its details from the orgUnitsResponse itself or fetch it directly
+  if (orgUnits.length === 0) {
+    let rootOrgUnit = {
+      orgUnitId: orgUnitsResponse.orgUnitId || "",
+      name: orgUnitsResponse.name || "",
+      orgUnitPath: orgUnitsResponse.orgUnitPath || "/",
+      description: orgUnitsResponse.description || "",
+      parentOrgUnitId: "", 
+      parentOrgUnitPath: "",
+    };
+
+    // If name is still empty, fetch the domain info and use the organization name
+    if (rootOrgUnit.name === "") {
+      const domainInfo = AdminDirectory.Customers.get('my_customer');
+      rootOrgUnit.name = domainInfo.postalAddress.organizationName || ""; 
+    }
+
+    // Set description to "Root level OU with no sub-OUs" if there are no other OUs
+    rootOrgUnit.description = "Root level OU with no sub-OUs"; 
+
+    orgUnits.push(rootOrgUnit); 
+  }
+
   // Prepare data for the sheet (including headers)
-  const fileArray = [headers]; 
+  const fileArray = [headers];
   orgUnits.forEach((orgUnit) => {
     fileArray.push([
-      orgUnit.orgUnitId.slice(3),
+      orgUnit.orgUnitId ? orgUnit.orgUnitId.slice(3) : "", 
       orgUnit.name,
       orgUnit.orgUnitPath,
-      orgUnit.description,
+      orgUnit.description, // Moved description to the 4th column
       orgUnit.parentOrgUnitId ? orgUnit.parentOrgUnitId.replace(/^id:/, "") : "",
       orgUnit.parentOrgUnitPath,
     ]);
@@ -70,16 +104,18 @@ function getOrgUnits(){
   // Delete columns G-Z
   orgUnitsSheet.deleteColumns(7, 20);
 
-  // Auto-resize columns A, B, C, E, and F
-  orgUnitsSheet.autoResizeColumns(1, 3);
-  orgUnitsSheet.autoResizeColumns(5, 2);
+  // Auto-resize all columns
+  orgUnitsSheet.autoResizeColumns(1, orgUnitsSheet.getLastColumn()); 
 
-  // Define ranges
-  spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange('E:F'));
-  spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange('A:C'));
+  // Define ranges 
+  // Only set named ranges if there's data in the sheet (orgUnits is not empty)
+  if (orgUnits.length > 0) {
+    spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange('E:F')); // Updated range for Org2ParentPath
+    spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange('A:C'));
 
-  // --- Add Filter View ---
-  const lastRow = orgUnitsSheet.getLastRow();
-  const filterRange = orgUnitsSheet.getRange('A1:F' + lastRow);  // Filter columns A through F (including header)
-  filterRange.createFilter(); 
+    // --- Add Filter View ---
+    const lastRow = orgUnitsSheet.getLastRow();
+    const filterRange = orgUnitsSheet.getRange('A1:F' + lastRow);  // Adjust filter range if needed
+    filterRange.createFilter();
+  }
 }
