@@ -34,16 +34,16 @@ function setupSheet() {
     currentSpreadsheet.deleteSheet(sheet1);
   }
 
-  currentSpreadsheet.rename('[' + domain + '] Security Checklist for Workspace Admins');
+  currentSpreadsheet.rename('[' + domain + '] DoiT AdminPulse for Workspace');
 
   copiedFile.setTrashed(true);
 
   const setupCompleteAlert = ui.alert('Sheet Setup Complete',
-    'Welcome to the Security Checklist for Workspace Admins!\n\n' +
+    'Welcome to the DoiT AdminPulse for Workspace!\n\n' +
     'This tool provides a comprehensive checklist of security controls for Business and Enterprise organizations.\n\n' +
     'To use this tool and all its functions, you must have a Super Admin account.\n\n' +
     'Many settings do not have an API, so we have included links to Google\'s documentation, best practice recommendations, and the relevant section of the admin console.\n\n' +
-    'To begin, run the read-only API reports using the Run All Scripts button under Extensions > Security Checklist for Workspace Admins. These reports will help you answer questions on the Security Checklist.\n\n' +
+    'To begin, run the read-only API reports using the Run All Scripts button under Extensions > DoiT AdminPulse for Workspace. These reports will help you answer questions on the Security Checklist.\n\n' +
     'After running the API reports, complete the checklist of security controls and take notes on areas where your organization can improve its security posture.\n\n' +
     'For developer support or assistance with reviewing your environment and understanding the findings, use the Get Support button in the Extensions menu.',
     ui.ButtonSet.OK);
