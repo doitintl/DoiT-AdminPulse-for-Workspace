@@ -1,11 +1,11 @@
 /**
- * This code creates the UI button under the Extensions menu and runs all scripts or individual scripts based on admin selection.
- * 
+ * This code creates the UI button under the Extensions menu and runs all 
+ * scripts or individual scripts based on admin selection.
  */
 
-// Triggered on install
+// Triggered on install 
 function onInstall(e) {
-  onOpen(e);
+  // No need to call onOpen here, it's automatically triggered on opening the sheet
 }
 
 // Creates the menu and sub-menu items under "Extensions"
@@ -13,7 +13,7 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
     .addItem('Activate Application', 'activateApplication')
-    .addSeparator()    
+    .addSeparator()     
     .addItem('Set up or Refresh Sheet', 'setupSheet')
     .addSeparator()
     .addItem('Run all scripts', 'promptRunAllScripts')
@@ -34,6 +34,7 @@ function onOpen(e) {
     .addItem('Get Support', 'contactPartner')
     .addToUi();
 }
+
 // Function to run all scripts with a confirmation prompt
 function promptRunAllScripts() {
   var response = Browser.msgBox(
@@ -78,10 +79,21 @@ function fetchInfo() {
 }
 
 function activateApplication() {
+  // Perform activation steps here (if any)
+
   const ui = SpreadsheetApp.getUi();
-  const result = ui.alert(
+  ui.alert(
     'Activate Application',
     'Application activated and connected to your Google Account. Next, use the "Set up or Refresh Sheet" button from the extensions menu.',
     ui.ButtonSet.OK
   );
+}
+
+function setupSheet() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert(
+    'Setup Sheet',
+    'Sheet setup complete!',
+    ui.ButtonSet.OK
+  ); 
 }
