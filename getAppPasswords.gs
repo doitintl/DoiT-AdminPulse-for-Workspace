@@ -4,7 +4,7 @@
  */
 
 function getAppPasswords() {
-  try { // <-- Moved the try block here
+  try { 
     const userEmail = Session.getActiveUser().getEmail();
     const domain = userEmail.split("@").pop();
 
