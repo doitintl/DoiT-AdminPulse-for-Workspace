@@ -20,10 +20,10 @@ This tool requires super admin access to your Google Workspace™ or Cloud Ident
 
 ## Getting Started:
 
-1. Make a copy of the [DoiT AdminPulse for Workspace](https://docs.google.com/spreadsheets/d/1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8/copy), which will also copy the App Script code.
-2. Open the workbook and begin the security review process, starting with the Google Workspace™ Security Checklist.
-3. Use the provided links for guidance and take notes as needed.
-4. Optionally, run the script by navigating to Extensions > DoiT AdminPulse for Workspace > Run all scripts to inventory users, group memberships, and more.
+1. Use your Super Admin account to install the [DoiT AdminPulse for Workspace](https://workspace.google.com/marketplace/app/doit_adminpulse_for_workspace/639424393187) Google Sheets Editor Add-on.
+2. Open a new Google Sheet and use **Extensions > DoiT AdminPulse for Workspace > Setup or Refresh Sheet** populate the checklist.
+3. Use the provided documentation links for guidance and take notes as needed while reviewing the enviorment.
+4. Optionally, run the inventory scripts by navigating to **Extensions > DoiT AdminPulse for Workspace > Run all scripts** to inventory users, group memberships, and more.
 5. The completed workbook will be helpful to identify areas of Google Workspace™ where your organization may be able to improve security.
 ![Fetch Info menu button\](image.png)](<Fetch Info.png>)
 
