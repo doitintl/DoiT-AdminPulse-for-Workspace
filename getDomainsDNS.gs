@@ -45,9 +45,11 @@ sheet.getRange('A2').setValue('google.com');
   headerRange.setBackground("#fc3165");
   headerRange.setFontWeight("bold");
 
-  // Set notes for cells D1 and F1
+  // Set notes for cells D1 - F1
   sheet.getRange("D1").setNote("Mail Exchange");
+  sheet.getRange("E1").setNote("Sender Policy Framework (SPF)");
   sheet.getRange("F1").setNote("DomainKeys Identified Mail, MXDomain = No Google DKIM record");
+  sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance (DMARC)");
 
   // Retrieve domain information
   do {
