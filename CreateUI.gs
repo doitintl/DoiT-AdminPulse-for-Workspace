@@ -22,6 +22,7 @@ function onOpen(e) {
       .addItem('List Customer Contact Info', 'getDomainInfo')
       .addItem('List Domains', 'promptGetDomainList')
       .addItem('List Users', 'getUsersList')
+      .addItem('List Aliases', 'listAliases')      
       .addItem('List Mobile Devices', 'getMobileDevices')
       .addItem('List License Assignments', 'getLicenseAssignments')
       .addItem('List OAuth Tokens', 'getTokens')
@@ -66,6 +67,7 @@ function fetchInfo() {
   getDomainInfo();  
   getDomainList();
   getUsersList();
+  listAliases();
   getMobileDevices();
   getLicenseAssignments();
   getTokens();
