@@ -16,10 +16,12 @@
     "https://www.googleapis.com/auth/admin.directory.group.readonly",
     "https://www.googleapis.com/auth/admin.directory.device.mobile.readonly",
     "https://www.googleapis.com/auth/admin.directory.customer.readonly",
-    "https://www.googleapis.com/auth/admin.directory.orgunit.readonly"
+    "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
+    "https://www.googleapis.com/auth/cloud-identity.policies.readonly"
   ],
   "urlFetchWhitelist": [
-    "https://cloudflare-dns.com/dns-query?name="
+    "https://cloudflare-dns.com/dns-query?name=",
+    "https://cloudidentity.googleapis.com/v1/policies?*"
   ],
   "dependencies": {
     "enabledAdvancedServices": [
