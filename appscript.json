@@ -21,7 +21,8 @@
   ],
   "urlFetchWhitelist": [
     "https://cloudflare-dns.com/dns-query?name=",
-    "https://cloudidentity.googleapis.com/v1/policies?*"
+    "https://cloudidentity.googleapis.com/v1/policies?*",
+    "https://cloudidentity.googleapis.com/v1beta1/policies?*"
   ],
   "dependencies": {
     "enabledAdvancedServices": [
