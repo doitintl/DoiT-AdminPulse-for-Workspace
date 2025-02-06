@@ -36,8 +36,7 @@ Contributions are welcome! Please refer to the How to Contribute.md in the GitHu
 ## Data privacy / What could go wrong:
 
 * The sheet is made available to the public via Google Sheets™ View Only access.
-* When the workbook is copied, you are also prompted to copy the associated appscript project. Your copy of the workbook and appscript project are then owned entirely by your account and unlinked from the public copy. Any changes to the public copy of the workbook or the public appscript will not be reflected in your copy of the workbook.
-* When a copy is made and scripts are run, the Google Sheet will contain sensitive information about your organization’s directory including user email addresses, names, Google Groups™ email addresses, memberships, and more. For this reason, it is recommended to only share the document with other Google Workspace™ administrators that are a part of your organization or trusted partners.
+* When the application completes it's run, the Google Sheet will contain sensitive information about your organization’s directory including user email addresses, names, Google Groups™ email addresses, memberships, and more. For this reason, it is recommended to only share the document with other Google Workspace™ administrators that are a part of your organization or trusted partners.
 * The app script code does not transmit, share or otherwise log the returned data to anywhere else besides your copy of the Google Sheet. 
 * The scripts will not work for non-super admin users. The scripts cannot be run against an external organization to which your Google account does not belong. 
-* The scripts are designed as a read-only reporting mechanism. Once the workbook is copied, the your copy of the app script code could be modified to provide addtional functionoality to Google Workspace™ Admin SDK. Read/write access can be dangerous and outside of the scope of this tool.
+* The scripts are designed as a read-only reporting mechanism.
