@@ -17,9 +17,10 @@ function setupSheet() {
 
   // --- Copy Template ---
   const templateId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
+  let copiedFileId;  // Declare copiedFileId outside the try block
   try {
     const copiedFile = DriveApp.getFileById(templateId).makeCopy();
-    const copiedFileId = copiedFile.getId();
+    copiedFileId = copiedFile.getId();
   } catch (e) {
     ui.alert('Error', 'Failed to copy the template file.  Please ensure you have access to the template file and try again.\n\nError Details: ' + e, ui.ButtonSet.OK);
     return; // Exit if the template can't be copied.  CRITICAL!
@@ -52,6 +53,7 @@ function setupSheet() {
   currentSpreadsheet.rename('[' + domain + '] DoiT AdminPulse for Workspace');
 
   // --- Trash Copied Template File ---
+  const copiedFile = DriveApp.getFileById(copiedFileId);
   copiedFile.setTrashed(true); // Clean up temporary file.
 
   // --- Setup Complete Alert ---
