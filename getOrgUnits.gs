@@ -82,40 +82,55 @@ function getOrgUnits() {
     // Set description to "Root level OU with no sub-OUs" if there are no other OUs
     rootOrgUnit.description = "Root level OU with no sub-OUs"; 
 
+    console.log("Fetched Root OU (from response or direct fetch):", rootOrgUnit);
+
     orgUnits.push(rootOrgUnit); 
   }
 
   // Prepare data for the sheet (including headers)
-  const fileArray = [headers];
+  const fileArray = [];
   orgUnits.forEach((orgUnit) => {
     fileArray.push([
       orgUnit.orgUnitId ? orgUnit.orgUnitId.slice(3) : "", 
       orgUnit.name,
       orgUnit.orgUnitPath,
-      orgUnit.description, // Moved description to the 4th column
+      orgUnit.description,
       orgUnit.parentOrgUnitId ? orgUnit.parentOrgUnitId.replace(/^id:/, "") : "",
       orgUnit.parentOrgUnitPath,
     ]);
   });
 
-  // Write data back to the sheet
-  orgUnitsSheet.getRange(1, 1, fileArray.length, fileArray[0].length).setValues(fileArray);
+  // Write data back to the sheet, including headers only if orgUnits has data. 
+  // If no data, only headers row will be present
+  if (fileArray.length > 0) {
+    orgUnitsSheet.getRange(2, 1, fileArray.length, fileArray[0].length).setValues(fileArray);
+  }
+
+    // Get the last row of the sheet. If it's just the header, then it's 1, otherwise get the last row.
+  const lastRow = orgUnitsSheet.getLastRow();
 
   // Delete columns G-Z
   orgUnitsSheet.deleteColumns(7, 20);
 
-  // Auto-resize all columns
-  orgUnitsSheet.autoResizeColumns(1, orgUnitsSheet.getLastColumn()); 
+
+    // Auto-resize all columns - only if there's more than just the header.
+    if (lastRow > 1) {
+      orgUnitsSheet.autoResizeColumns(1, orgUnitsSheet.getLastColumn()); 
+    }
+
 
   // Define ranges 
-  // Only set named ranges if there's data in the sheet (orgUnits is not empty)
+  // Only set named ranges and filter if there's data in the sheet (orgUnits is not empty)
   if (orgUnits.length > 0) {
-    spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange('E:F')); // Updated range for Org2ParentPath
-    spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange('A:C'));
 
-    // --- Add Filter View ---
-    const lastRow = orgUnitsSheet.getLastRow();
-    const filterRange = orgUnitsSheet.getRange('A1:F' + lastRow);  // Adjust filter range if needed
-    filterRange.createFilter();
-  }
+        if (lastRow > 1) { //Set NamedRanges only if we have more than just the header row
+          spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange('E:F')); // Updated range for Org2ParentPath
+          spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange('A:C'));
+        }
+
+       // --- Add Filter View ---
+      const filterRange = orgUnitsSheet.getRange('A1:F' + lastRow);  // Adjust filter range if needed
+       filterRange.createFilter();
+    }
+
 }
