@@ -5,36 +5,35 @@ const FONT_SIZE = 10;
 const SHEET_NAME = "Users"; // Name the sheet to consolidate code.
 
 function getUsersList() {
-    const users = [];
-    const userEmail = Session.getActiveUser().getEmail();
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const users = [];
+  const userEmail = Session.getActiveUser().getEmail();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-    const options = {
-        customer: "my_customer",
-        maxResults: 100,
-        projection: "FULL",
-        viewType: "admin_view",
-        orderBy: "email",
-    };
+  const options = {
+    customer: "my_customer", // Keep this!
+    maxResults: 100,
+    projection: "FULL",
+    viewType: "admin_view",
+    orderBy: "email",
+  };
 
-    try {
-        // Get or create the "Users" sheet.
-        let usersSheet = getOrCreateSheet(spreadsheet, SHEET_NAME);
+  try {
+    // Get or create the "Users" sheet.
+    let usersSheet = getOrCreateSheet(spreadsheet, SHEET_NAME);
 
-        // Headers
-        const headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
-            "Archived", "Last Login Time", "Creation Date", "Enrolled in 2SV", "Enforced in 2SV",
-            "Org Path"];
-        const headerRange = usersSheet.getRange("A1:K1");
-        headerRange.setValues([headers]);
-        headerRange.setFontColor(HEADER_FONT_COLOR);
-        headerRange.setFontSize(FONT_SIZE);
-        headerRange.setFontFamily(FONT_FAMILY);
-        headerRange.setBackground(HEADER_BG_COLOR);
-        headerRange.setFontWeight("bold");
+    // Headers
+    const headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
+      "Archived", "Last Login Time", "Creation Date", "Enrolled in 2SV", "Enforced in 2SV",
+      "Org Path"];
+    const headerRange = usersSheet.getRange("A1:K1");
+    headerRange.setValues([headers]);
+    headerRange.setFontColor(HEADER_FONT_COLOR);
+    headerRange.setFontSize(FONT_SIZE);
+    headerRange.setFontFamily(FONT_FAMILY);
+    headerRange.setBackground(HEADER_BG_COLOR);
+    headerRange.setFontWeight("bold");
 
         // Insert data in the spreadsheet
-        let lastRow = 0; //Initialize last row
         do {
             try {
                 Utilities.sleep(200);  // Add some delay to avoid hitting rate limits
@@ -66,8 +65,6 @@ function getUsersList() {
                     Logger.log("No users found in this page or invalid response.");
                 }
 
-                //Update last row
-                lastRow = users.length;
 
                 if (response && response.nextPageToken) {
                     options.pageToken = response.nextPageToken;
@@ -103,8 +100,10 @@ function getUsersList() {
         usersSheet.deleteColumns(12, usersSheet.getMaxColumns() - 11); //Deletes from L to the end of sheet.
 
         // Conditional Formatting (refactored for clarity)
-        applyConditionalFormatting(usersSheet, lastRow);
+        applyConditionalFormatting(usersSheet);
 
+                // Re-calculate lastRow after data is written to the sheet
+        const lastRow = usersSheet.getLastRow();
         // Dynamic Named Range Calculation
         const rangeForNamedRange = usersSheet.getRange(2, 2, Math.max(1, lastRow - 1), 4); // B2:E[lastRow] Use Math.max to ensure height is never 0
 
@@ -137,7 +136,6 @@ function getUsersList() {
         SpreadsheetApp.getUi().alert(`An error occurred: ${e}. Check the logs.`);
     }
 }
-
 function applyConditionalFormatting(usersSheet) {
   // Clear any existing conditional formatting
   usersSheet.clearConditionalFormatRules();
@@ -170,7 +168,6 @@ function applyConditionalFormatting(usersSheet) {
 
   usersSheet.setConditionalFormatRules(rules); //Set all the rules at once.
 }
-
 function addFilter(usersSheet) {
     try {
         const lastRow = usersSheet.getLastRow();
@@ -205,10 +202,10 @@ function highlightNeverLoggedIn(usersSheet) {
 }
 
 /**
- * Formats a date string into a more readable format, including timezone.
+ * Formats a date string into a more readable format (without timezone).
  * @param {string} dateString The date string to format (e.g., "2024-08-08T12:41:09.000Z").
  * @param {boolean} includeTime Whether to include the time in the formatted output.
- * @returns {string} The formatted date string (e.g., "1/28/24 12:41 PM PST"), or null if the input is null/undefined.
+ * @returns {string} The formatted date string (e.g., "1/28/24 12:41 PM"), or null if the input is null/undefined.
  */
 function formatDate(dateString, includeTime) {
   if (!dateString) {
@@ -231,12 +228,6 @@ function formatDate(dateString, includeTime) {
       hours = hours ? hours : 12;
       const formattedTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
       formattedDate += ` ${formattedTime}`;
-
-      // Get timezone abbreviation (e.g., "PST", "EST")
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const timezoneAbbreviation = getTimezoneAbbreviation(timezone, date);
-
-      formattedDate += ` ${timezoneAbbreviation}`;
     }
 
     return formattedDate;
@@ -246,30 +237,6 @@ function formatDate(dateString, includeTime) {
   }
 }
 
-/**
- * Gets the timezone abbreviation for a given timezone and date.
- * @param {string} timezone The IANA timezone name (e.g., "America/Los_Angeles").
- * @param {Date} date The Date object for which to determine the abbreviation.
- * @returns {string} The timezone abbreviation (e.g., "PST", "PDT").
- */
-function getTimezoneAbbreviation(timezone, date) {
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'short',
-    });
-    const parts = formatter.formatToParts(date);
-    for (const part of parts) {
-      if (part.type === 'timeZoneName') {
-        return part.value;
-      }
-    }
-    return timezone; // Fallback to full timezone name if abbreviation not found
-  } catch (e) {
-    Logger.log(`Error getting timezone abbreviation for ${timezone}: ${e}`);
-    return timezone; // Fallback to full timezone name on error
-  }
-}
 
 function getOrCreateSheet(spreadsheet, sheetName) {
     let sheet = spreadsheet.getSheetByName(sheetName);
