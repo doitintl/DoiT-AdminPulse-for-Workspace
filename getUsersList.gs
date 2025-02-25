@@ -1,198 +1,286 @@
+const HEADER_BG_COLOR = "#fc3165";
+const HEADER_FONT_COLOR = "#ffffff";
+const FONT_FAMILY = "Montserrat";
+const FONT_SIZE = 10;
+const SHEET_NAME = "Users"; // Name the sheet to consolidate code.
+
 function getUsersList() {
-  const users = [];
-  const userEmail = Session.getActiveUser().getEmail();
-  const domain = userEmail.split("@").pop();
-  const options = {
-    domain: domain,
-    customer: "my_customer",
-    maxResults: 100,
-    projection: "FULL",
-    viewType: "admin_view",
-    orderBy: "email",
-  };
+    const users = [];
+    const userEmail = Session.getActiveUser().getEmail();
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = spreadsheet.getSheets();
-  const lastSheetIndex = sheets.length;
+    const options = {
+        customer: "my_customer",
+        maxResults: 100,
+        projection: "FULL",
+        viewType: "admin_view",
+        orderBy: "email",
+    };
 
-  // Check if "Users" sheet exists, delete it if it does
-  let usersSheet = spreadsheet.getSheetByName("Users");
-  if (usersSheet) {
-    spreadsheet.deleteSheet(usersSheet);
-  }
+    try {
+        // Get or create the "Users" sheet.
+        let usersSheet = getOrCreateSheet(spreadsheet, SHEET_NAME);
 
-  // Create a new sheet at the last index
-  usersSheet = spreadsheet.insertSheet("Users", lastSheetIndex);
+        // Headers
+        const headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
+            "Archived", "Last Login Time", "Creation Date", "Enrolled in 2SV", "Enforced in 2SV",
+            "Org Path"];
+        const headerRange = usersSheet.getRange("A1:K1");
+        headerRange.setValues([headers]);
+        headerRange.setFontColor(HEADER_FONT_COLOR);
+        headerRange.setFontSize(FONT_SIZE);
+        headerRange.setFontFamily(FONT_FAMILY);
+        headerRange.setBackground(HEADER_BG_COLOR);
+        headerRange.setFontWeight("bold");
 
-  var headers = ["Name", "Email", "Super Admin", "Delegated Admin", "Suspended",
-    "Archived", "Last Login Time", "Creation Time", "Enrolled in 2SV", "Enforced in 2SV",
-    "Org Path"];
-  var headerRange = usersSheet.getRange("A1:K1"); // Changed to K1 to accommodate new column
-  headerRange.setValues([headers]);
-  headerRange.setFontColor("#ffffff");
-  headerRange.setFontSize(10);
-  headerRange.setFontFamily("Montserrat");
-  headerRange.setBackground("#fc3165");
-  headerRange.setFontWeight("bold");
+        // Insert data in the spreadsheet
+        let lastRow = 0; //Initialize last row
+        do {
+            try {
+                Utilities.sleep(200);  // Add some delay to avoid hitting rate limits
+                let response = AdminDirectory.Users.list(options);
 
-  // Delete cells L to Z
-  usersSheet.deleteColumns(12, 15); // L to Z. Adjusted to account for added column.
+                if (response && response.users) {
+                    // Process users and push into the 'users' array
+                    users.push(
+                        ...response.users.map((user) => {
+                            const lastLoginTime = user.lastLoginTime === "1970-01-01T00:00:00.000Z" ? "Never logged in" : (user.lastLoginTime ? formatDate(user.lastLoginTime, true) : null);
+                            const creationTime = user.creationTime ? formatDate(user.creationTime, false) : null;
 
-  let response;
-  do {
-    response = AdminDirectory.Users.list(options); //Types of info pulled from API https://developers.google.com/admin-sdk/directory/reference/rest/v1/users
-    users.push(
-      ...response.users.map((user) => {
-        // Format the dates.  If null or undefined, return null.
-        let lastLoginTime = user.lastLoginTime ? user.lastLoginTime : null;
+                            return [
+                                user.name.fullName,
+                                user.primaryEmail,
+                                user.isAdmin || false,
+                                user.isDelegatedAdmin || false,
+                                user.suspended || false,
+                                user.archived || false,
+                                lastLoginTime,
+                                creationTime,
+                                user.isEnrolledIn2Sv || false,
+                                user.isEnforcedIn2Sv || false,
+                                user.orgUnitPath || ""
+                            ];
+                        })
+                    );
+                } else {
+                    Logger.log("No users found in this page or invalid response.");
+                }
 
-        // Check for the epoch time (1970-01-01T00:00:00.000Z) and replace with "Never logged in"
-        if (lastLoginTime === "1970-01-01T00:00:00.000Z") {
-          lastLoginTime = "Never logged in";
+                //Update last row
+                lastRow = users.length;
+
+                if (response && response.nextPageToken) {
+                    options.pageToken = response.nextPageToken;
+                } else {
+                    options.pageToken = null;
+                }
+            } catch (apiError) {
+                Logger.log(`API Error: ${apiError} - PageToken: ${options.pageToken || 'First Page'}`);
+                break;
+            }
+        } while (options.pageToken);
+
+        // Set the values after the loop
+        if (users.length > 0) {
+            usersSheet.getRange(2, 1, users.length, headers.length).setValues(users);
+            usersSheet.setFrozenRows(1);
         } else {
-          lastLoginTime = formatDate(lastLoginTime);
+            Logger.log("No users found to insert into the sheet.");
+            usersSheet.getRange("A2").setValue("No users found."); //Display "No users found." message below header
         }
 
-        const creationTime = user.creationTime ? formatDate(user.creationTime) : null;
+        // Set Column Widths (Batch Update)
+        const columnWidths = [null, null, 112, 145, 105, 90, 135, 120, 129, 130, null]; // null for auto
+        for (let i = 0; i < columnWidths.length; i++) {
+            if (columnWidths[i] !== null) {
+                usersSheet.setColumnWidth(i + 1, columnWidths[i]);
+            } else {
+                usersSheet.autoResizeColumn(i + 1);
+            }
+        }
 
-        return [
-          user.name.fullName,
-          user.primaryEmail,
-          user.isAdmin,
-          user.isDelegatedAdmin,
-          user.suspended,
-          user.archived,
-          lastLoginTime, // Formatted Last Login Time
-          creationTime,  // Formatted Creation Time
-          user.isEnrolledIn2Sv,
-          user.isEnforcedIn2Sv,
-          user.orgUnitPath,
-        ];
-      }),
-    );
+        // Delete extra columns (L onwards)
+        usersSheet.deleteColumns(12, usersSheet.getMaxColumns() - 11); //Deletes from L to the end of sheet.
 
-    // For domains with many users, the results are paged
-    if (response.nextPageToken) {
-      options.pageToken = response.nextPageToken;
+        // Conditional Formatting (refactored for clarity)
+        applyConditionalFormatting(usersSheet, lastRow);
+
+        // Dynamic Named Range Calculation
+        const rangeForNamedRange = usersSheet.getRange(2, 2, Math.max(1, lastRow - 1), 4); // B2:E[lastRow] Use Math.max to ensure height is never 0
+
+        // Named Range
+        // First remove the existing named range
+        let namedRange = spreadsheet.getNamedRanges();
+        for (let i = 0; i < namedRange.length; i++) {
+            if (namedRange[i].getName() == "UserStatus") {
+                try {
+                    namedRange[i].remove();
+                } catch (remove_error) {
+                    Logger.log("Unable to remove named range");
+                }
+
+            }
+        }
+        // Now create a new one.
+        spreadsheet.setNamedRange('UserStatus', rangeForNamedRange);
+
+        // Filter
+        addFilter(usersSheet);
+
+        // Highlight "Never logged in"
+        highlightNeverLoggedIn(usersSheet);
+
+        Logger.log("User list generation complete.");
+
+    } catch (e) {
+        Logger.log(`Error during user list generation: ${e}`);
+        SpreadsheetApp.getUi().alert(`An error occurred: ${e}. Check the logs.`);
     }
-  } while (response.nextPageToken);
+}
 
-  // Insert data in a spreadsheet
-  usersSheet.setFrozenRows(1); // Sets headers in sheet and freezes row
-  usersSheet.getRange(2, 1, users.length, users[0].length).setValues(users); // Adds in user info starting from row 1
+function applyConditionalFormatting(usersSheet) {
+  // Clear any existing conditional formatting
+  usersSheet.clearConditionalFormatRules();
 
-  // Auto resize specific columns
-  usersSheet.autoResizeColumns(2, 10);  // Auto-resize columns B through K
+  // Find the last row of *data* in column A (Name) - most reliable indicator
+  const lastRow = usersSheet.getLastRow(); //Used to capture all the user records.
+  const ranges = {
+    "C": usersSheet.getRange("C2:C" + lastRow), // Super Admin
+    "D": usersSheet.getRange("D2:D" + lastRow), // Delegated Admin
+    "I": usersSheet.getRange("I2:I" + lastRow), // Enrolled in 2SV
+    "J": usersSheet.getRange("J2:J" + lastRow)  // Enforced in 2SV
+  };
 
-  // Apply conditional formatting
-  var rangeC = usersSheet.getRange("C2:C1000");
-  var ruleC = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("TRUE")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeC])
-    .build();
-  var ruleCFalse = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("FALSE")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeC])
-    .build();
+  let rules = [];  //Create rules list
 
-  var rangeI = usersSheet.getRange("I2:I1000"); // Changed from H to I due to the addition of creationTime.
-  var ruleI = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("FALSE")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeI])
-    .build();
-  var ruleIFalse = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("TRUE")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeI])
-    .build();
-
-  var rangeJ = usersSheet.getRange("J2:J1000"); // Changed from I to J due to the addition of creationTime.
-  var ruleJ = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("FALSE")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeJ])
-    .build();
-  var ruleJFalse = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("TRUE")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeJ])
-    .build();
-
-  var rangeD = usersSheet.getRange("D2:D1000");
-  var ruleD = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("TRUE")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeD])
-    .build();
-  var ruleDFalse = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("FALSE")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeD])
-    .build();
-
-  var rules = [ruleC, ruleCFalse, ruleI, ruleIFalse, ruleJ, ruleJFalse, ruleD, ruleDFalse]; //Changed H to I and I to J
-  usersSheet.setConditionalFormatRules(rules);
-
-  // Create named range for columns B, C, D, and E
-  var namedRange = spreadsheet.setNamedRange('UserStatus', usersSheet.getRange('B2:E1000'));
-
-  // Add a filter to columns C-K
-  try {
-    const rangeForFilter = usersSheet.getRange(1, 3, usersSheet.getLastRow(), 9); // C to K (9 columns)
-    let filter = usersSheet.getFilter();
-
-    if (filter) {
-      filter.remove(); //remove existing filters.
-
-    }
-    usersSheet.getRange(1, 1, usersSheet.getLastRow(), usersSheet.getLastColumn()).createFilter();
-
-  } catch (e) {
-    Logger.log(`Error adding filter: ${e}`);
+  for (const col in ranges) {
+    const range = ranges[col];
+    const trueRule = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo("TRUE")
+      .setBackground("#b7e1cd")
+      .setRanges([range])
+      .build();
+    const falseRule = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo("FALSE")
+      .setBackground("#ffb6c1")
+      .setRanges([range])
+      .build();
+    rules = rules.concat([trueRule, falseRule]); //Add the rules to the list.
   }
 
-  // Apply yellow background to "Never logged in" cells
-  const lastColumn = usersSheet.getLastColumn();
-  const lastRow = usersSheet.getLastRow();
-  const lastLoginColumnIndex = 7; // Column G - "Last Login Time"
+  usersSheet.setConditionalFormatRules(rules); //Set all the rules at once.
+}
 
-  const lastLoginRange = usersSheet.getRange(2, lastLoginColumnIndex, lastRow - 1, 1); // Get range of last login values
+function addFilter(usersSheet) {
+    try {
+        const lastRow = usersSheet.getLastRow();
+        const lastColumn = usersSheet.getLastColumn();
 
-  const lastLoginValues = lastLoginRange.getValues(); // Get all values
+        //Data range should only include the content.  Start at first column, first row, last row of data.
+        const dataRange = usersSheet.getRange(1, 1, lastRow, lastColumn);
+        let filter = usersSheet.getFilter();
 
-  for (let i = 0; i < lastLoginValues.length; i++) {
-    if (lastLoginValues[i][0] === "Never logged in") { // If value is "Never logged in"
-      usersSheet.getRange(i + 2, lastLoginColumnIndex).setBackground("yellow"); // Set the yellow background. Adding 2 because of index and header row.
+        if (filter) {
+            filter.remove();
+        }
+        dataRange.createFilter();  //Create a new filter.
+
+    } catch (e) {
+        Logger.log(`Error adding filter: ${e}`);
     }
-  }
+}
+
+function highlightNeverLoggedIn(usersSheet) {
+    const lastLoginColumnIndex = 7; // Column G
+    const lastRow = usersSheet.getLastRow();
+
+    const lastLoginRange = usersSheet.getRange(2, lastLoginColumnIndex, lastRow - 1, 1);
+    const lastLoginValues = lastLoginRange.getValues();
+
+    for (let i = 0; i < lastLoginValues.length; i++) {
+        if (lastLoginValues[i][0] === "Never logged in") {
+            usersSheet.getRange(i + 2, lastLoginColumnIndex).setBackground("yellow");
+        }
+    }
 }
 
 /**
- * Formats a date string into a more readable format.
+ * Formats a date string into a more readable format, including timezone.
  * @param {string} dateString The date string to format (e.g., "2024-08-08T12:41:09.000Z").
- * @returns {string} The formatted date string (e.g., "August 8, 2024, 12:41 PM"), or null if the input is null/undefined.
+ * @param {boolean} includeTime Whether to include the time in the formatted output.
+ * @returns {string} The formatted date string (e.g., "1/28/24 12:41 PM PST"), or null if the input is null/undefined.
  */
-function formatDate(dateString) {
+function formatDate(dateString, includeTime) {
   if (!dateString) {
-    return null; // Handle null or undefined input
+    return null;
   }
 
   try {
     const date = new Date(dateString);
-    const options = {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true, // Use 12-hour time format
-    };
-    return date.toLocaleString('en-US', options); // Format to US English
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear().toString().slice(-2);
+
+    let formattedDate = `${month}/${day}/${year}`;
+
+    if (includeTime) {
+      let hours = date.getHours();
+      const minutes = date.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const formattedTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+      formattedDate += ` ${formattedTime}`;
+
+      // Get timezone abbreviation (e.g., "PST", "EST")
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const timezoneAbbreviation = getTimezoneAbbreviation(timezone, date);
+
+      formattedDate += ` ${timezoneAbbreviation}`;
+    }
+
+    return formattedDate;
   } catch (e) {
     Logger.log(`Error formatting date: ${dateString} - ${e}`);
-    return "Invalid Date"; // Return a user-friendly error message
+    return "Invalid Date";
   }
+}
+
+/**
+ * Gets the timezone abbreviation for a given timezone and date.
+ * @param {string} timezone The IANA timezone name (e.g., "America/Los_Angeles").
+ * @param {Date} date The Date object for which to determine the abbreviation.
+ * @returns {string} The timezone abbreviation (e.g., "PST", "PDT").
+ */
+function getTimezoneAbbreviation(timezone, date) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short',
+    });
+    const parts = formatter.formatToParts(date);
+    for (const part of parts) {
+      if (part.type === 'timeZoneName') {
+        return part.value;
+      }
+    }
+    return timezone; // Fallback to full timezone name if abbreviation not found
+  } catch (e) {
+    Logger.log(`Error getting timezone abbreviation for ${timezone}: ${e}`);
+    return timezone; // Fallback to full timezone name on error
+  }
+}
+
+function getOrCreateSheet(spreadsheet, sheetName) {
+    let sheet = spreadsheet.getSheetByName(sheetName);
+    if (sheet) {
+        try {
+          spreadsheet.deleteSheet(sheet);  //Delete existing sheet
+        } catch (err) {
+          Logger.log("Unable to delete sheet with name "+sheetName+".")
+        }
+
+    }
+    sheet = spreadsheet.insertSheet(sheetName, spreadsheet.getSheets().length); //Insert new sheet at end
+    return sheet;  //Return the sheet
 }
