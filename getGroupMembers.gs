@@ -1,11 +1,11 @@
-function getGroupMembers() {
+ function getGroupMembers() {
   const groupEmails = [];
   let nextPageToken = "";
 
   try {
     do {
       const page = AdminDirectory.Groups.list({
-        customer: 'my_customer', // It should be 'my_customer' because super admins run this function.
+        customer: 'my_customer',
         maxResults: 100,
         pageToken: nextPageToken,
       });
@@ -42,19 +42,17 @@ function getGroupMembers() {
         if (members) {
           members.forEach((member) => {
             let memberEmail = member.email;
-            let isChatSpace = false; // Flag to track chat space membership
-
-            const spaceRegex = /^space\//; // Regular expression to match "space/"
-
-            if (spaceRegex.test(memberEmail)) {
-              // It's a chat space!
-              const spaceId = memberEmail.substring(6); // Extract the space ID
-              memberEmail = "Chat Space (ID: " + spaceId + ")"; // Display a placeholder name. Could extract real name via API if available.
-              isChatSpace = true; // Set flag
-            }
 
             if (!memberEmail) {
               memberEmail = "All members in the organization";
+            } else {
+              const spaceRegex = /^space\//; // Regular expression to match "space/"
+
+              if (spaceRegex.test(memberEmail)) {
+                // It's a chat space!
+                const spaceId = memberEmail.substring(6); // Extract the space ID
+                memberEmail = "Chat Space (ID: " + spaceId + ")"; // Display a placeholder name. Could extract real name via API if available.
+              }
             }
 
             const row = [
@@ -95,7 +93,8 @@ function getGroupMembers() {
     groupMembersSheet = spreadsheet.insertSheet("Group Members", lastSheetIndex);
 
     // Set up the sheet with headers and formatting
-    groupMembersSheet.getRange("A1:F1").setValues([["Group Email", "Member Email", "Member Role", "Member Status", "Member Type", "Member ID"]]);
+    const headers = [["Group Email", "Member Email", "Member Role", "Member Status", "Member Type", "Member ID"]];
+    groupMembersSheet.getRange("A1:F1").setValues(headers);
     groupMembersSheet.getRange("A1:F1").setFontColor("#ffffff").setFontSize(10).setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight("bold");
     groupMembersSheet.setFrozenRows(1);
     // Delete columns G-Z
@@ -103,39 +102,35 @@ function getGroupMembers() {
 
     // Append data to the end of the sheet
     const lastRow = groupMembersSheet.getLastRow();
-    const dataRange = groupMembersSheet.getRange(lastRow + 1, 1, groupMembers.length, groupMembers[0].length);
-    dataRange.setValues(groupMembers);
+    groupMembersSheet.getRange(groupMembersSheet.getLastRow() + 1, 1, groupMembers.length, groupMembers[0].length).setValues(groupMembers);
     groupMembersSheet.autoResizeColumns(1, 6);
 
-    // --- Optimization: Batch operations for formatting and notes ---
+    // --- Optimization: Batch operations for notes ---
     const numRows = groupMembers.length;
-    const memberEmailValues = groupMembersSheet.getRange(2, 2, numRows, 1).getValues(); // Get all Member Email values at once
+    const memberEmailValues = groupMembersSheet.getRange(2, 2, numRows, 1).getValues();
 
-    const noteRanges = []; // Array to store ranges that need notes
+    const notesData = []; // Array to store note values
     const boldRanges = []; // Array to store ranges for bolding "All members..."
-    const spaceRanges = []; // Array to store ranges with space membership for notes
 
     for (let i = 0; i < numRows; i++) {
-      const memberType = groupMembers[i][4]; // Member Type
-      const memberStatus = groupMembers[i][3]; // Member Status
-      const memberEmail = memberEmailValues[i][0]; // Member Email from cached values
-      const isChatSpace = memberEmail.startsWith("Chat Space");
+      const memberType = groupMembers[i][4];
+      const memberStatus = groupMembers[i][3];
+      const memberEmail = memberEmailValues[i][0];
+      let note = null;
 
       if (memberEmail === "All members in the organization") {
-        boldRanges.push(groupMembersSheet.getRange(i + 2, 2)); // Add range to bold
+        boldRanges.push(groupMembersSheet.getRange(i + 2, 2));
+      } else if (memberEmail.startsWith("Chat Space")) {
+        note = "Chat Space Membership";
+      } else if (memberType !== "CUSTOMER" && !memberStatus) {
+        note = "External Membership";
       }
-      if (isChatSpace) {
-         spaceRanges.push(groupMembersSheet.getRange(i + 2, 4)); // Target column D for space notes
-      }
-      // Only add the External Membership note if it's *not* a chat space
-      if (memberType !== "CUSTOMER" && !memberStatus && !isChatSpace) {
-        noteRanges.push(groupMembersSheet.getRange(i + 2, 4)); // Add range for "External Membership" note
-      }
+
+      notesData.push([note]);
     }
 
-    // Apply notes in batch
-    noteRanges.forEach(range => range.setNote("External Membership"));
-    spaceRanges.forEach(range => range.setNote("Chat Space Membership"));
+    // Set notes in batch
+    groupMembersSheet.getRange(2, 4, numRows, 1).setNotes(notesData); // Set all notes at once
 
     // Apply bold formatting in batch
     boldRanges.forEach(range => range.setFontWeight("bold"));
@@ -159,18 +154,18 @@ function getGroupMembers() {
         .setRanges([range])
         .build(),
       SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('OR($B2="All members in the organization", $B2.startsWith("Chat Space"))')
+        .whenFormulaSatisfied('OR($B2="All members in the organization", LEFT($B2, 10)="Chat Space")')
         .setBackground("#b7e1cd") // Light green for All members AND Chat Space
         .setRanges([range])
         .build(),
       SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=AND(ISBLANK(D2), NOT(OR($B2="All members in the organization", $B2.startsWith("Chat Space"))))')
+        .whenFormulaSatisfied('=AND(ISBLANK(D2), NOT(OR($B2="All members in the organization", LEFT($B2, 10)="Chat Space")))')
         .setBackground("#fff2cc") // Yellow for external, non All members and Chat Space
         .setRanges([range])
         .build(),
       SpreadsheetApp.newConditionalFormatRule()
         .whenFormulaSatisfied('=OR(ISBLANK(C2), ISBLANK(D2), ISBLANK(A2))')
-        .setBackground("#fff2cc")
+        .setBackground("#b7e1cd")
         .setRanges([range])
         .build()
     ];
