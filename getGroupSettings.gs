@@ -70,6 +70,9 @@ function getGroupsSettings() {
   groupSettingsSheet.setColumnWidth(3, 275);
   groupSettingsSheet.setFrozenColumns(2);
 
+  // Hide column A
+  groupSettingsSheet.hideColumn(groupSettingsSheet.getRange("A:A"));
+
   // Add notes to specified cells
   groupSettingsSheet
     .getRange("E1")
@@ -109,9 +112,9 @@ function getGroupsSettings() {
   groupSettingsSheet
     .getRange("I1")
     .setNote(
-      "Specifies the set of users for whom this group is discoverable. Possible values are:\n" +
-        "   ANYONE_CAN_DISCOVER: The group is discoverable by anyone searching for groups.\n" +
-        "   ALL_IN_DOMAIN_CAN_DISCOVER: The group is only discoverable by users within the same domain as the group.\n" +
+      "Specifies the set of users for whom this group is discoverable.\n\n" +
+        "   ANYONE_CAN_DISCOVER: The group is discoverable by anyone searching for groups.\n\n" +
+        "   ALL_IN_DOMAIN_CAN_DISCOVER: The group is only discoverable by users within the same domain as the group.\n\n" +
         "   ALL_MEMBERS_CAN_DISCOVER: The group is only discoverable by existing members of the group.",
     );
 
@@ -128,224 +131,174 @@ function getGroupsSettings() {
   groupSettingsSheet
     .getRange("J1")
     .setNote(
-      "Identifies whether members external to your organization can join the group. Possible values are:\n\n" +
-        "true: Google Workspace users external to your organization can become members of this group.\n\n" +
-        "false: Users not belonging to the organization are not allowed to become members of this group.",
+      "Identifies whether members external to your organization can join the group.\n\n" +
+        "   true: Google Workspace users external to your organization can become members of this group.\n\n" +
+        "   false: Users not belonging to the organization are not allowed to become members of this group.",
     );
 
   groupSettingsSheet
     .getRange("K1")
     .setNote(
-      "Allows posting from web. Possible values are:\n\n" +
-        "true: Allows any member to post to the group forum.\n\n" +
-        "false: Members only use Gmail to communicate with the group.",
+      "Allows posting from web.\n\n" +
+        "   true: Allows any member to post to the group forum.\n\n" +
+        "   false: Members only use Gmail to communicate with the group.",
     );
 
   groupSettingsSheet
     .getRange("L1")
     .setNote(
-      "The primary language for the group. Use the language tags in the Supported languages table.",
+      "The primary language for the group.",
     );
 
   groupSettingsSheet
     .getRange("M1")
     .setNote(
-      "Allows the Group contents to be archived. Possible values are:\n\n" +
-        "true: Archive messages sent to the group.\n\n" +
-        "false: Do not keep an archive of messages sent to this group. If false, previously archived messages remain in the archive.",
+      "Allows the Group contents to be archived.\n\n" +
+        "   true: Archive messages sent to the group.\n\n" +
+        "   false: Do not keep an archive of messages sent to this group.",
     );
 
   groupSettingsSheet
     .getRange("N1")
     .setNote(
-      "Allows the group to be archived only. Possible values are:\n\n" +
-        "true: Group is archived and the group is inactive. New messages to this group are rejected. The older archived messages are browseable and searchable.\n\n" +
-        "If true, the whoCanPostMessage property is set to NONE_CAN_POST.\n\n" +
-        "If reverted from true to false, whoCanPostMessages is set to ALL_MANAGERS_CAN_POST.\n\n" +
-        "false: The group is active and can receive messages.\n\n" +
-        "When false, updating whoCanPostMessage to NONE_CAN_POST, results in an error.",
+      "Allows the group to be archived only.\n\n" +
+        "   true: Group is archived and the group is inactive.\n\n" +
+        "   false: The group is active and can receive messages.",
     );
 
   groupSettingsSheet
     .getRange("O1")
     .setNote(
-      "Moderation level of incoming messages. Possible values are:\n\n" +
-        "MODERATE_ALL_MESSAGES: All messages are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
-        "MODERATE_NON_MEMBERS: All messages from non group members are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
-        "MODERATE_NEW_MEMBERS: All messages from new members are sent to the group owner's email address for approval. If approved, the message is sent to the group.\n\n" +
-        "MODERATE_NONE: No moderator approval is required. Messages are delivered directly to the group.",
+      "Moderation level of incoming messages.\n\n" +
+        "   MODERATE_ALL_MESSAGES: All messages are sent to the group owner's email address for approval.\n\n" +
+        "   MODERATE_NON_MEMBERS: All messages from non group members are sent to the group owner's email address for approval.\n\n" +
+        "   MODERATE_NEW_MEMBERS: All messages from new members are sent to the group owner's email address for approval.\n\n" +
+        "   MODERATE_NONE: No moderator approval is required.",
     );
 
   groupSettingsSheet
     .getRange("P1")
     .setNote(
-      "Specifies moderation levels for messages detected as spam. Possible values are:\n\n" +
-        "ALLOW: Post the message to the group.\n\n" +
-        "MODERATE: Send the message to the moderation queue. This is the default.\n\n" +
-        "SILENTLY_MODERATE: Send the message to the moderation queue, but do not send notification to moderators.\n\n" +
-        "REJECT: Immediately reject the message.",
+      "Specifies moderation levels for messages detected as spam.\n\n" +
+        "   ALLOW: Post the message to the group.\n\n" +
+        "   MODERATE: Send the message to the moderation queue.\n\n" +
+        "   SILENTLY_MODERATE: Send the message to the moderation queue.\n\n" +
+        "   REJECT: Immediately reject the message.",
     );
 
   groupSettingsSheet
     .getRange("Q1")
     .setNote(
-      "Specifies who receives the default reply. Possible values are:\n\n" +
-        "REPLY_TO_CUSTOM: For replies to messages, use the group's custom email address.\n" +
-        "  - When ReplyTo is set to REPLY_TO_CUSTOM, customReplyTo must have a value, otherwise an error is returned.\n\n" +
-        "REPLY_TO_SENDER: The reply sent to author of message.\n\n" +
-        "REPLY_TO_LIST: This reply message is sent to the group.\n\n" +
-        "REPLY_TO_OWNER: The reply is sent to the owner(s) of the group. This does not include the group's managers.\n\n" +
-        "REPLY_TO_IGNORE: Group users individually decide where the message reply is sent.\n\n" +
-        "REPLY_TO_MANAGERS: This reply message is sent to the group's managers, which includes all managers and the group owner.",
+      "Specifies who receives the default reply.\n\n" +
+        "   REPLY_TO_CUSTOM: For replies to messages, use the group's custom email address.\n\n" +
+        "   REPLY_TO_SENDER: The reply sent to author of message.\n\n" +
+        "   REPLY_TO_LIST: This reply message is sent to the group.\n\n" +
+        "   REPLY_TO_OWNER: The reply is sent to the owner(s) of the group.\n\n" +
+        "   REPLY_TO_IGNORE: Group users individually decide where the message reply is sent.",
     );
 
   groupSettingsSheet
     .getRange("R1")
     .setNote(
-      "An email address used when replying to a message if the replyTo property is set to REPLY_TO_CUSTOM. This address is defined by an account administrator.\n\n" +
-        "When the group's ReplyTo property is set to REPLY_TO_CUSTOM, the customReplyTo property holds the custom email address used when replying to a message.\n\n" +
-        "If the group's ReplyTo property is set to REPLY_TO_CUSTOM, the customReplyTo property must have a text value, otherwise an error is returned.",
+      "An email address used when replying to a message if the replyTo property is set to REPLY_TO_CUSTOM.",
     );
 
   groupSettingsSheet
     .getRange("S1")
     .setNote(
-      "Whether to include a custom footer. Possible values are:\n\n" +
-        "true: Include the custom footer text set in the `customFooterText` property.\n\n" +
-        "false: Don't include a custom footer.",
+      "Whether to include a custom footer.\n\n" +
+        "   true: Include the custom footer text.\n\n" +
+        "   false: Don't include a custom footer.",
     );
 
   groupSettingsSheet
     .getRange("T1")
     .setNote(
-      "Sets the content of the custom footer text. Maximum characters: 1,000.\n\n" +
-        "Note: Custom footers only appear in emails sent from the group, not when viewing messages within Google Groups.",
+      "Sets the content of the custom footer text.",
     );
 
   groupSettingsSheet
     .getRange("U1")
     .setNote(
-      "Allows a member to be notified if their message to the group is denied by the group owner. Possible values are:\n\n" +
-        "true: Send a notification to the message author when their message is rejected. The content of the notification is set in the `defaultMessageDenyNotificationText` property.\n\n" +
-        "  - Note: The `defaultMessageDenyNotificationText` property only applies when `sendMessageDenyNotification` is set to `true`.\n\n" +
-        "false: No notification is sent to the message author when their message is rejected.",
+      "Allows a member to be notified if their message to the group is denied by the group owner.",
     );
 
   groupSettingsSheet
     .getRange("V1")
     .setNote(
-      "Enables the group to be included in the Global Address List. For more information, see the help center. Possible values are:\n" +
-        "   true: Group is included in the Global Address List.\n" +
-        "   false: Group is not included in the Global Address List.",
+      "Denied Message Notification Text.",
     );
 
   groupSettingsSheet
     .getRange("W1")
     .setNote(
-      "Enables members to post messages as the group. Possible values are:\n" +
-        "   true: Group member can post messages using the group's email address instead of their own email address. Messages appear to originate from the group itself.\n" +
-        "        Note: When true, any message moderation settings on individual users or new members do not apply to posts made on behalf of the group.\n" +
-        "   false: Members cannot post in behalf of the group's email address.",
+      "Enables members to post messages as the group.",
     );
 
   groupSettingsSheet
     .getRange("X1")
     .setNote(
-      "Enables the group to be included in the Global Address List. For more information, see the help center. Possible values are:\n" +
-        "   true: Group is included in the Global Address List.\n" +
-        "   false: Group is not included in the Global Address List.",
+      "Enables the group to be included in the Global Address List.",
     );
 
   groupSettingsSheet
     .getRange("Y1")
     .setNote(
-      "Permission to leave the group. Possible values are:\n" +
-        "   ALL_MANAGERS_CAN_LEAVE: Group managers can leave the group.\n" +
-        "   ALL_MEMBERS_CAN_LEAVE: All group members can leave the group.\n" +
-        "   NONE_CAN_LEAVE: No one can leave the group. Group ownership can only be transferred.",
+      "Permission to leave the group.",
     );
 
   groupSettingsSheet
     .getRange("Z1")
     .setNote(
-      "Permission to contact owner of the group via web UI. Possible values are:\n" +
-        "   ALL_IN_DOMAIN_CAN_CONTACT: Anyone within the same domain as the group can contact the owner.\n" +
-        "   ALL_MANAGERS_CAN_CONTACT: Only group managers can contact the owner.\n" +
-        "   ALL_MEMBERS_CAN_CONTACT: All group members can contact the owner.\n" +
-        "   ANYONE_CAN_CONTACT: Anyone can contact the owner via the web UI.",
+      "Permission to contact owner of the group via web UI.",
     );
 
   groupSettingsSheet
     .getRange("AA1")
     .setNote(
-      "Indicates if favorite replies should be displayed before other replies.\n" +
-        "   true: Favorite replies are displayed at the top, above other replies.\n" +
-        "   false: Favorite replies are displayed alongside other replies in the conversation order.",
+      "Indicates if favorite replies should be displayed before other replies.",
     );
 
   groupSettingsSheet
     .getRange("AB1")
     .setNote(
-      "Specifies who can deny membership to users. This permission will be deprecated once it is merged into the whoCanModerateMembers setting.\n" +
-        "   ALL_MEMBERS: All group members can deny membership requests.\n" +
-        "   OWNERS_AND_MANAGERS: Only group owners and managers can deny membership requests.\n" +
-        "   OWNERS_ONLY: Only group owners can deny membership requests.\n" +
-        "   NONE: No one can deny membership requests (automatic approval).",
+      "Specifies who can deny membership to users.",
     );
 
   groupSettingsSheet
     .getRange("AC1")
     .setNote(
-      "Specifies who can manage members (approve/deny membership requests, remove members). Possible values are:\n" +
-        "   ALL_MEMBERS: All group members can manage members.\n" +
-        "   OWNERS_AND_MANAGERS: Only group owners and managers can manage members.\n" +
-        "   OWNERS_ONLY: Only group owners can manage members.\n" +
-        "   NONE: No one can manage members except the group owner (automatic approval for membership requests).",
+      "Specifies who can manage members.",
     );
 
   groupSettingsSheet
     .getRange("AD1")
     .setNote(
-      "Specifies who can moderate content (approve/reject/remove messages). Possible values are:\n" +
-        "   ALL_MEMBERS: All group members can moderate content.\n" +
-        "   OWNERS_AND_MANAGERS: Only group owners and managers can moderate content.\n" +
-        "   OWNERS_ONLY: Only group owners can moderate content.\n" +
-        "   NONE: No one can moderate content except the group owner (all messages are automatically posted).",
+      "Specifies who can moderate content.",
     );
 
   groupSettingsSheet
     .getRange("AE1")
     .setNote(
-      "Specifies who can moderate metadata (tags, topics). Possible values are:\n" +
-        "   ALL_MEMBERS: All group members can moderate metadata.\n" +
-        "   OWNERS_AND_MANAGERS: Only group owners and managers can moderate metadata.\n" +
-        "   MANAGERS_ONLY: Only group managers can moderate metadata (owners cannot).\n" +
-        "   OWNERS_ONLY: Only group owners can moderate metadata.\n" +
-        "   NONE: No one can moderate metadata except the group owner (metadata edits are automatic).",
+      "Specifies who can moderate metadata.",
     );
 
   groupSettingsSheet
     .getRange("AF1")
     .setNote(
-      "Specifies whether the group has a custom role that's included in one of the settings being merged. This field is read-only and updates to it are ignored.\n" +
-        "   true: The group has a custom role included in the settings being merged.\n" +
-        "   false: The group does not have a custom role included in the settings being merged.",
+      "Specifies whether the group has a custom role that's included in one of the settings being merged.",
     );
 
   groupSettingsSheet
     .getRange("AG1")
     .setNote(
-      "Specifies whether a collaborative inbox will remain turned on for the group. Possible values are:\n" +
-        "   true: The group will continue to use a collaborative inbox where members can see and manage emails sent to the group address.\n" +
-        "   false: The group will not use a collaborative inbox. Emails sent to the group address will only be delivered to group owners.",
+      "Specifies whether a collaborative inbox will remain turned on for the group.",
     );
 
   groupSettingsSheet
     .getRange("AH1")
     .setNote(
-      "Default sender for members who can post messages as the group. Possible values are:\n" +
-        "   DEFAULT_SELF: When a member with 'post as group' permission sends a message, it will appear to be sent from their own email address.\n" +
-        "   GROUP: When a member with 'post as group' permission sends a message, it will appear to be sent from the group's email address.",
+      "Default sender for members who can post messages as the group.",
     );
 
 const rangeE = groupSettingsSheet.getRange("E2:E");
@@ -445,7 +398,6 @@ const rule18 = SpreadsheetApp.newConditionalFormatRule()
   .setBackground("#c6efce") // Light green
   .setRanges([rangeH])
   .build();
-
 const rangeI = groupSettingsSheet.getRange("L2:L");
 const rule19 = SpreadsheetApp.newConditionalFormatRule()
   .whenTextContains("True")
@@ -468,7 +420,6 @@ const rule22 = SpreadsheetApp.newConditionalFormatRule()
   .setBackground("#ffc7ce") // Light red
   .setRanges([rangeJ])
   .build();  
-
 const rangeK = groupSettingsSheet.getRange("O2:O");
 const rule23 = SpreadsheetApp.newConditionalFormatRule()
   .whenTextContains("MODERATE_NONE")
@@ -490,7 +441,6 @@ const rule26 = SpreadsheetApp.newConditionalFormatRule()
   .setBackground("#c6efce") // Light green
   .setRanges([rangeK])
   .build();
-
 const rangeL = groupSettingsSheet.getRange("P2:P");
 const rule27 = SpreadsheetApp.newConditionalFormatRule()
   .whenTextContains("ALLOW")
@@ -512,7 +462,6 @@ const rule30 = SpreadsheetApp.newConditionalFormatRule()
   .setBackground("#c6efce") // Light green
   .setRanges([rangeL])
   .build();
-
 const rangeAM = groupSettingsSheet.getRange("I2:I");
 const rule31 = SpreadsheetApp.newConditionalFormatRule()
   .whenTextContains("ANYONE_CAN_DISCOVER")
@@ -521,7 +470,7 @@ const rule31 = SpreadsheetApp.newConditionalFormatRule()
   .build();
 const rule32 = SpreadsheetApp.newConditionalFormatRule()
   .whenTextContains("ALL_IN_DOMAIN_CAN_DISCOVER")
-  .setBackground("#c6efce") // Light green
+  .setBackground("#ffc7ce") // Light red
   .setRanges([rangeAM])
   .build();
 const rule33 = SpreadsheetApp.newConditionalFormatRule()
@@ -551,6 +500,26 @@ const rules = [
 ];
 
 groupSettingsSheet.setConditionalFormatRules(rules);
+
+  // Add filters to columns E-AH
+  const lastColumn = groupSettingsSheet.getLastColumn();
+  const filterRange = groupSettingsSheet.getRange(1, 5, 1, Math.min(31, lastColumn - 4)); // Filters E to AH
+  let filter = groupSettingsSheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
+  let criteria = SpreadsheetApp.newFilterCriteria().build();
+  let dataRange = groupSettingsSheet.getDataRange();
+  let filterCreated = dataRange.createFilter();
+  for (let i = 5; i <= Math.min(34, lastColumn); i++) {
+    filterCreated.setColumnFilterCriteria(i, criteria);
+  }
+
+  // Auto resize specified columns
+  const columnsToResize = [5, 6, 7, 8, 9, 15, 17, 25, 26, 28, 29, 30, 31, 34]; // E, F, G, H, I, O, Q, Y, Z, AB, AC, AD, AE, AH
+  columnsToResize.forEach(column => {
+    groupSettingsSheet.autoResizeColumn(column);
+  });
 
 
   let pageToken;
