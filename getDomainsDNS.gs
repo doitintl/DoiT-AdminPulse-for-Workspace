@@ -1,106 +1,49 @@
-/**This script leverages CloudFlare DNS in Google Sheets. https://github.com/cloudflare/cloudflare-docs/blob/production/content/1.1.1.1/other-ways-to-use-1.1.1.1/dns-in-google-sheets.md 
-
-The MIT License (MIT)
-
-Copyright (c) 2021 Cloudflare, Inc. 
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software *without restriction, 
-including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
-and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR *PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,  WHETHER IN AN ACTION OF CONTRACT, TORT *OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-**/
-
+/**
+ * This script retrieves domain information from Admin Directory API and performs
+ * DNS lookups using Google Public DNS. It was initially based on a script
+ * that used Cloudflare DNS
+ * (https://github.com/cloudflare/cloudflare-docs/blob/production/content/1.1.1.1/other-ways-to-use-1.1.1.1/dns-in-google-sheets.md),
+ * but has been significantly modified to remove Cloudflare DNS and integrate
+ * with Google Public DNS and Google Admin API.
+ */
 function getDomainList(customer) {
-  // Retrieve domain information from Admin Directory API
-  const domainList = [];
-  let pageToken = null;
-  const customerDomain = 'my_customer';
-  
-const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-let sheet = spreadsheet.getSheetByName('Domains/DNS');
+  const customerDomain = 'my_customer'; // Replace with your customer ID
 
-// Check if "Domains/DNS" sheet exists, delete it if it does
-if (sheet) {
-  spreadsheet.deleteSheet(sheet);
-}
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName('Domains/DNS');
 
-// Get the index for the new sheet (as the last sheet in the workbook)
-const newSheetIndex = spreadsheet.getNumSheets();
+  if (sheet) {
+    spreadsheet.deleteSheet(sheet);
+  }
 
-// Create a new sheet at the last index
-sheet = spreadsheet.insertSheet('Domains/DNS', newSheetIndex);
+  sheet = spreadsheet.insertSheet('Domains/DNS', spreadsheet.getNumSheets());
 
-// Set "google.com" in cell A2 as a placeholder
-sheet.getRange('A2').setValue('google.com');
-  
-  // Set the headers
+  // Set Headers and Notes (do this only once)
   const headers = ["Domains", "Verified", "Primary", "MX", "SPF", "DKIM", "DMARC"];
-  const headerRange = sheet.getRange("A1:G1");
-  headerRange.setValues([headers]);
-  headerRange.setFontColor("#ffffff");
-  headerRange.setFontSize(10);
-  headerRange.setFontFamily("Montserrat");
-  headerRange.setBackground("#fc3165");
-  headerRange.setFontWeight("bold");
-
-  // Set notes for cells D1 - F1
+  sheet.getRange("A1:G1").setValues([headers])
+    .setFontColor("#ffffff")
+    .setFontSize(10)
+    .setFontFamily("Montserrat")
+    .setBackground("#fc3165")
+    .setFontWeight("bold");
   sheet.getRange("D1").setNote("Mail Exchange");
-  sheet.getRange("E1").setNote("Sender Policy Framework (SPF)");
+  sheet.getRange("E1").setNote("Sender Policy Framework");
   sheet.getRange("F1").setNote("DomainKeys Identified Mail, MXDomain = No Google DKIM record");
-  sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance (DMARC)");
+  sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance");
 
-  // Retrieve domain information
-  do {
-    try {
-      const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
+  //Get the Domain
+  const domainList = getDomainInformation_(customerDomain);
 
-      response.domains.forEach(function (domain) {
-        domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
-      });
-    } catch (e) {
-      console.error('Error retrieving domains:', e);
-      break;
-    }
-  } while (pageToken);
-
-  // Retrieve domain alias information
-  pageToken = null;
-
-  do {
-    try {
-      const response = AdminDirectory.DomainAliases.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
-
-      if (response.domainAliases) {
-        response.domainAliases.forEach(function (domainAlias) {
-          domainList.push([domainAlias.domainAliasName, domainAlias.verified, 'False']);
-        });
-      }
-    } catch (e) {
-      console.error('Error retrieving domain aliases:', e);
-      break;
-    }
-  } while (pageToken);
-
-  // Write domain information to spreadsheet
+  // Write domain information to spreadsheet in one batch
   sheet.getRange(2, 1, domainList.length, domainList[0].length).setValues(domainList);
 
-  // Add formulas to columns D, E, F, and G starting from row 2
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    const formulasD = '=IFERROR(NSLookup($D$1,A2), empty)';
-    const formulasE = '=IFERROR(NSLookup("txt", A2), empty)';
-    const formulasF = '=IFERROR(NSLookup("TXT","google._domainkey."&A2), empty)';
-    const formulasG = '=IFERROR(NSLookup("TXT","_dmarc."&A2), empty)';
+  // Get DNS Records
+  const dnsResults = getDnsRecords(domainList);
 
-    sheet.getRange(2, 4, lastRow - 1, 1).setFormula(formulasD);
-    sheet.getRange(2, 5, lastRow - 1, 1).setFormula(formulasE);
-    sheet.getRange(2, 6, lastRow - 1, 1).setFormula(formulasF);
-    sheet.getRange(2, 7, lastRow - 1, 1).setFormula(formulasG);
-  }
+  // Get the last row
+  const lastRow = sheet.getLastRow();
+
+  sheet.getRange(2,4,lastRow -1 , 4).setValues(dnsResults);
 
   // Delete columns H-Z
   sheet.deleteColumns(8, 19);
@@ -179,73 +122,121 @@ sheet.getRange('A2').setValue('google.com');
 
   // --- Add Persistent Toast Notification ---
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    "If you use a third-party mail gateway or a SPF flattener, records may be highlighted red and should be manually inspected.", 
-    "Instructions", 
+    "If you use a third-party mail gateway or a SPF flattener, records may be highlighted red and should be manually inspected.",
+    "Instructions",
     -1 // Persistent toast
   );
-// --- Add Filter View ---
-const filterRange = sheet.getRange('B1:G' + lastRow);  // Define the filter range
-filterRange.createFilter();
+
+  // --- Add Filter View ---
+  const filterRange = sheet.getRange('B1:G' + sheet.getLastRow());  // Define the filter range
+  filterRange.createFilter();
 
   // --- Freeze Row 1 ---
-  sheet.setFrozenRows(1); 
+  sheet.setFrozenRows(1);
 }
 
-function NSLookup(type, domain) { //Function takes DNS record type and domain as input
+function getDomainInformation_(customerDomain) {
+  const domainList = [];
+  let pageToken = null;
 
-  if (typeof type == 'undefined') { //Validation for record type and domain
-    throw new Error('Missing parameter 1 dns type');
-  }
+  // Retrieve domain information
+  do {
+    try {
+      const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
+      pageToken = response.nextPageToken;
 
-  if (typeof domain == 'undefined') {
-    throw new Error('Missing parameter 2 domain name');
-  }
+      if (!response || !response.domains) {
+        console.warn('No domains found or error retrieving domains.');
+        break;
+      }
 
-  type = type.toUpperCase(); //Convert record type to uppercase
-
-  const url = 'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(domain) + '&type=' + encodeURIComponent(type); //Concatenate URL query 
-
-  const options = {
-    muteHttpExceptions: true,
-    headers: {
-      accept: "application/dns-json"
+      response.domains.forEach(function (domain) {
+        domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
+      });
+    } catch (e) {
+      console.error('Error retrieving domains:', e);
+      break;
     }
-  };
+  } while (pageToken);
 
-  const result = UrlFetchApp.fetch(url, options);
-  const rc = result.getResponseCode();
-  const resultText = result.getContentText();
+  // Retrieve domain alias information
+  pageToken = null;
+  do {
+    try {
+      const response = AdminDirectory.DomainAliases.list(customerDomain, { pageToken: pageToken });
+      pageToken = response.nextPageToken;
 
-  if (rc !== 200) {
-    throw new Error(rc);
+      if (response && response.domainAliases) {
+        response.domainAliases.forEach(function (domainAlias) {
+          domainList.push([domainAlias.domainAliasName, domainAlias.verified, 'False']);
+        });
+      }
+    } catch (e) {
+      console.error('Error retrieving domain aliases:', e);
+      break;
+    }
+  } while (pageToken);
+
+  return domainList;
+}
+
+function getDnsRecords(domainList) {
+  const dnsResults = [];
+  for (let i = 0; i < domainList.length; i++) {
+    const domain = domainList[i][0];
+
+    let mxRecords = performGoogleDNSLookup("MX", domain);
+    let spfRecords = performGoogleDNSLookup("TXT", domain);
+    let dkimRecords = performGoogleDNSLookup("TXT", "google._domainkey." + domain);
+    let dmarcRecords = performGoogleDNSLookup("TXT", "_dmarc." + domain);
+
+    // Add notes if no records are found
+    if (!mxRecords) {
+      mxRecords = "No MX records found";
+    }
+    if (!spfRecords) {
+      spfRecords = "No SPF records found";
+    }
+    if (!dkimRecords) {
+      dkimRecords = "No DKIM records found";
+    }
+    if (!dmarcRecords) {
+      dmarcRecords = "No DMARC records found";
+    }
+    dnsResults.push([mxRecords,spfRecords, dkimRecords, dmarcRecords]);
   }
+  return dnsResults;
+}
 
-  const errors = [
-    { name: "NoError", description: "No Error"}, // 0
-    { name: "FormErr", description: "Format Error"}, // 1
-    { name: "ServFail", description: "Server Failure"}, // 2
-    { name: "NXDomain", description: "Non-Existent Domain"}, // 3
-    { name: "NotImp", description: "Not Implemented"}, // 4
-    { name: "Refused", description: "Query Refused"}, // 5
-    { name: "YXDomain", description: "Name Exists when it should not"}, // 6
-    { name: "YXRRSet", description: "RR Set Exists when it should not"}, // 7
-    { name: "NXRRSet", description: "RR Set that should exist does not"}, // 8
-    { name: "NotAuth", description: "Not Authorized"} // 9
-  ];
+/**
+ * Performs a DNS lookup using Google Public DNS.
+ * @param {string} type The DNS record type (e.g., "MX", "TXT").
+ * @param {string} domain The domain to lookup.
+ * @return {string} The DNS data, or an empty string if no records found or an error occurred.
+ */
+function performGoogleDNSLookup(type, domain) {
+  const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(type)}`;
 
-  const response = JSON.parse(resultText);
+  try {
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const httpCode = response.getResponseCode();
+    const json = response.getContentText();
+    const data = JSON.parse(json);
 
-  if (response.Status !== 0) {
-    return errors[response.Status].name;
+    if (httpCode !== 200) {
+      Logger.log(`Google Public DNS HTTP Error ${httpCode} for ${domain} (${type}): ${json}`);
+      return ""; // HTTP Error: treated as no record found.  Return an empty string
+    }
+
+    if (data.Answer) {
+      const outputData = data.Answer.map(record => record.data);
+      return outputData.join('\n');
+    } else {
+      // No Answer Section
+      return ""; // Return empty string for no record found
+    }
+  } catch (error) {
+    Logger.log(`Error fetching DNS data from Google Public DNS for ${domain} (${type}): ${error}`);
+    return ""; //Treat as a no-record-found. Return an empty string.
   }
-
-  const outputData = [];
-
-  for (const i in response.Answer) {
-    outputData.push(response.Answer[i].data);
-  }
-
-  const outputString = outputData.join('\n');
-
-  return outputString;
 }

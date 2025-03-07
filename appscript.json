@@ -20,7 +20,7 @@
     "https://www.googleapis.com/auth/cloud-identity.policies.readonly"
   ],
   "urlFetchWhitelist": [
-    "https://cloudflare-dns.com/dns-query?name=",
+    "https://dns.google/resolve?name=*",
     "https://cloudidentity.googleapis.com/v1/policies?*",
     "https://cloudidentity.googleapis.com/v1beta1/policies?*"
   ],
