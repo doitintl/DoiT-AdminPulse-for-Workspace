@@ -8,7 +8,7 @@
  * */
 
 function getDomainList() {
-  const customerDomain = 'my_customer'; // Replace with your customer ID
+  const customerDomain = 'my_customer'; 
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName('Domains/DNS');
@@ -166,8 +166,6 @@ function getDomainList() {
 
     // --- Freeze Row 1 ---
     sheet.setFrozenRows(1);
-
-    SpreadsheetApp.getActiveSpreadsheet().toast('Domain and DNS check completed successfully!', 'Success', 3);
 
   } catch (e) {
     // Display error message to the user
