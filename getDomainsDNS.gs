@@ -1,251 +1,357 @@
-/**This script leverages CloudFlare DNS in Google Sheets. https://github.com/cloudflare/cloudflare-docs/blob/production/content/1.1.1.1/other-ways-to-use-1.1.1.1/dns-in-google-sheets.md 
+/**
+ * This script retrieves domain information from Admin Directory API and performs
+ * DNS lookups using Google Public DNS. It was initially based on a script
+ * that used Cloudflare DNS
+ * (https://github.com/cloudflare/cloudflare-docs/blob/production/content/1.1.1.1/other-ways-to-use-1.1.1.1/dns-in-google-sheets.md),
+ * but has been significantly modified to remove Cloudflare DNS and integrate
+ * with Google Public DNS and Google Admin API.
+ * */
 
-The MIT License (MIT)
+function getDomainList() {
+  const customerDomain = 'my_customer'; 
 
-Copyright (c) 2021 Cloudflare, Inc. 
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName('Domains/DNS');
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software *without restriction, 
-including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
-and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+  try {
+    if (sheet) {
+      spreadsheet.deleteSheet(sheet);
+    }
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR *PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,  WHETHER IN AN ACTION OF CONTRACT, TORT *OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-**/
+    sheet = spreadsheet.insertSheet('Domains/DNS', spreadsheet.getNumSheets());
 
-function getDomainList(customer) {
-  // Retrieve domain information from Admin Directory API
-  const domainList = [];
-  let pageToken = null;
-  const customerDomain = 'my_customer';
-  
-const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-let sheet = spreadsheet.getSheetByName('Domains/DNS');
+    const headers = ["Domains", "Verified", "Primary", "MX", "SPF", "DKIM", "DMARC", "DNS Status"];
+    sheet.getRange("A1:H1").setValues([headers])
+      .setFontColor("#ffffff")
+      .setFontSize(10)
+      .setFontFamily("Montserrat")
+      .setBackground("#fc3165")
+      .setFontWeight("bold");
+    sheet.getRange("D1").setNote("Mail Exchange, Red cells indicate Google MX records were not found.");
+    sheet.getRange("E1").setNote("Sender Policy Framework, Red cells indicate Google SPF record was not found.");
+    sheet.getRange("F1").setNote("DomainKeys Identified Mail, Red cells indicate the default DKIM selector for Google was not found.");
+    sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance, Red cells indicate no DMARC records found.");
+    sheet.getRange("H1").setNote("Status of DNS Lookups");
 
-// Check if "Domains/DNS" sheet exists, delete it if it does
-if (sheet) {
-  spreadsheet.deleteSheet(sheet);
+    // Get the Domain
+    const domainList = getDomainInformation_(customerDomain);
+
+    // Write domain information to spreadsheet in one batch
+    sheet.getRange(2, 1, domainList.length, domainList[0].length).setValues(domainList);
+
+    // Get DNS Records
+    const dnsResultsWithStatus = getDnsRecords(domainList); // Modified to return DNS results AND status
+
+    // Get the last row
+    const lastRow = sheet.getLastRow();
+
+    //Extract DNS results
+    const dnsResults = dnsResultsWithStatus.map(item => [item.mxRecords.data, item.spfRecords.data, item.dkimRecords.data, item.dmarcRecords.data]);
+    sheet.getRange(2, 4, lastRow - 1, 4).setValues(dnsResults);
+
+    //Write the status message to the sheet
+    const statusMessages = dnsResultsWithStatus.map(item => {
+      let overallStatus = "";
+      if (item.mxRecords.status !== "Lookup Complete" ||
+        item.spfRecords.status !== "Lookup Complete" ||
+        item.dkimRecords.status !== "Lookup Complete" ||
+        item.dmarcRecords.status !== "Lookup Complete") {
+        //Something is not complete.
+        let issues = [];
+        if (item.mxRecords.status !== "Lookup Complete") {
+          issues.push(`MX: ${item.mxRecords.status}`);
+        }
+        if (item.spfRecords.status !== "Lookup Complete") {
+          issues.push(`SPF: ${item.spfRecords.status}`);
+        }
+        if (item.dkimRecords.status !== "Lookup Complete") {
+          issues.push(`DKIM: ${item.dkimRecords.status}`);
+        }
+        if (item.dmarcRecords.status !== "Lookup Complete") {
+          issues.push(`DMARC: ${item.dmarcRecords.status}`);
+        }
+        overallStatus = "Issues Found:\n" + issues.join("\n"); // Added line breaks
+
+      } else {
+        overallStatus = "Lookup Complete";
+      }
+      return [overallStatus];
+    });
+    sheet.getRange(2, 8, lastRow - 1, 1).setValues(statusMessages); // Write status messages to column H
+
+
+    // Delete columns I-Z
+    sheet.deleteColumns(9, 18);
+
+    // Delete empty rows
+    const dataRange = sheet.getDataRange();
+    const allData = dataRange.getValues();
+    for (let i = allData.length - 1; i >= 0; i--) {
+      if (allData[i].every(value => value === '')) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+
+    // Set column sizes
+    sheet.autoResizeColumn(1);
+    sheet.setColumnWidth(4, 150);
+    sheet.setColumnWidth(5, 150);
+    sheet.setColumnWidth(6, 150);
+    sheet.setColumnWidth(7, 164); // Adjusted for Status Message
+    sheet.setColumnWidth(8, 300); // Adjusted for Status Message
+
+    // Apply conditional formatting rules
+    const rangeD = sheet.getRange("D2:D" + lastRow);
+    const ruleD = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains("google")
+      .setBackground("#b7e1cd")
+      .setRanges([rangeD])
+      .build();
+
+    const rangeE = sheet.getRange("E2:E" + lastRow);
+    const ruleE = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains("_spf.google.com")
+      .setBackground("#b7e1cd")
+      .setRanges([rangeE])
+      .build();
+
+    const rangeF = sheet.getRange("F2:F" + lastRow);
+    const ruleF = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains("v=dkim1;")
+      .setBackground("#b7e1cd")
+      .setRanges([rangeF])
+      .build();
+
+    const rangeG = sheet.getRange("G2:G" + lastRow);
+    const ruleG = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains("v=dmarc")
+      .setBackground("#b7e1cd")
+      .setRanges([rangeG])
+      .build();
+
+    const rangeDRed = sheet.getRange("D2:D" + lastRow);
+    const ruleDRed = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextDoesNotContain("google")
+      .setBackground("#ffb6c1")
+      .setRanges([rangeD])
+      .build();
+
+    const rangeERed = sheet.getRange("E2:E" + lastRow);
+    const ruleERed = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextDoesNotContain("_spf.google.com")
+      .setBackground("#ffb6c1")
+      .setRanges([rangeE])
+      .build();
+
+    const rangeFRed = sheet.getRange("F2:F" + lastRow);
+    const ruleFRed = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextDoesNotContain("v=dkim1;")
+      .setBackground("#ffb6c1")
+      .setRanges([rangeF])
+      .build();
+
+    const rangeGRed = sheet.getRange("G2:G" + lastRow);
+    const ruleGRed = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextDoesNotContain("v=dmarc")
+      .setBackground("#ffb6c1")
+      .setRanges([rangeG])
+      .build();
+
+    const rules = [ruleD, ruleE, ruleF, ruleG, ruleDRed, ruleERed, ruleFRed, ruleGRed];
+    sheet.setConditionalFormatRules(rules);
+
+    // --- Add Filter View ---
+    const filterRange = sheet.getRange('B1:H' + sheet.getLastRow());
+    filterRange.createFilter();
+
+    // --- Freeze Row 1 ---
+    sheet.setFrozenRows(1);
+
+  } catch (e) {
+    // Display error message to the user
+    SpreadsheetApp.getActiveSpreadsheet().toast(`An error occurred: ${e.message}`, 'Error', 5);
+    Logger.log(e);
+  }
 }
 
-// Get the index for the new sheet (as the last sheet in the workbook)
-const newSheetIndex = spreadsheet.getNumSheets();
-
-// Create a new sheet at the last index
-sheet = spreadsheet.insertSheet('Domains/DNS', newSheetIndex);
-
-// Set "google.com" in cell A2 as a placeholder
-sheet.getRange('A2').setValue('google.com');
-  
-  // Set the headers
-  const headers = ["Domains", "Verified", "Primary", "MX", "SPF", "DKIM", "DMARC"];
-  const headerRange = sheet.getRange("A1:G1");
-  headerRange.setValues([headers]);
-  headerRange.setFontColor("#ffffff");
-  headerRange.setFontSize(10);
-  headerRange.setFontFamily("Montserrat");
-  headerRange.setBackground("#fc3165");
-  headerRange.setFontWeight("bold");
-
-  // Set notes for cells D1 - F1
-  sheet.getRange("D1").setNote("Mail Exchange");
-  sheet.getRange("E1").setNote("Sender Policy Framework (SPF)");
-  sheet.getRange("F1").setNote("DomainKeys Identified Mail, MXDomain = No Google DKIM record");
-  sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance (DMARC)");
+function getDomainInformation_(customerDomain) {
+  const domainList = [];
+  let pageToken = null;
+  const maxRetries = 3;
 
   // Retrieve domain information
   do {
-    try {
-      const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
+    let retryCount = 0;
+    let success = false;
+    while (!success && retryCount < maxRetries) {
+      try {
+        const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
+        pageToken = response.nextPageToken;
 
-      response.domains.forEach(function (domain) {
-        domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
-      });
-    } catch (e) {
-      console.error('Error retrieving domains:', e);
+        if (!response || !response.domains) {
+          console.warn('No domains found or error retrieving domains.');
+          break;
+        }
+
+        response.domains.forEach(function (domain) {
+          domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
+        });
+        success = true;
+      } catch (e) {
+        console.error(`Error retrieving domains (retry ${retryCount + 1}/${maxRetries}):`, e);
+        retryCount++;
+        Utilities.sleep(1000 * Math.pow(2, retryCount));
+      }
+    }
+    if (!success) {
+      console.error("Failed to retrieve domains after multiple retries.");
       break;
     }
   } while (pageToken);
 
   // Retrieve domain alias information
   pageToken = null;
-
   do {
-    try {
-      const response = AdminDirectory.DomainAliases.list(customerDomain, { pageToken: pageToken });
-      pageToken = response.nextPageToken;
+    let retryCount = 0;
+    let success = false;
+    while (!success && retryCount < maxRetries) {
+      try {
+        const response = AdminDirectory.DomainAliases.list(customerDomain, { pageToken: pageToken });
+        pageToken = response.nextPageToken;
 
-      if (response.domainAliases) {
-        response.domainAliases.forEach(function (domainAlias) {
-          domainList.push([domainAlias.domainAliasName, domainAlias.verified, 'False']);
-        });
+        if (response && response.domainAliases) {
+          response.domainAliases.forEach(function (domainAlias) {
+            domainList.push([domainAlias.domainAliasName, domainAlias.verified, 'False']);
+          });
+        }
+        success = true;
+      } catch (e) {
+        console.error(`Error retrieving domain aliases (retry ${retryCount + 1}/${maxRetries}):`, e);
+        retryCount++;
+        Utilities.sleep(1000 * Math.pow(2, retryCount));
       }
-    } catch (e) {
-      console.error('Error retrieving domain aliases:', e);
+    }
+    if (!success) {
+      console.error("Failed to retrieve domain aliases after multiple retries.");
       break;
     }
   } while (pageToken);
 
-  // Write domain information to spreadsheet
-  sheet.getRange(2, 1, domainList.length, domainList[0].length).setValues(domainList);
-
-  // Add formulas to columns D, E, F, and G starting from row 2
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    const formulasD = '=IFERROR(NSLookup($D$1,A2), empty)';
-    const formulasE = '=IFERROR(NSLookup("txt", A2), empty)';
-    const formulasF = '=IFERROR(NSLookup("TXT","google._domainkey."&A2), empty)';
-    const formulasG = '=IFERROR(NSLookup("TXT","_dmarc."&A2), empty)';
-
-    sheet.getRange(2, 4, lastRow - 1, 1).setFormula(formulasD);
-    sheet.getRange(2, 5, lastRow - 1, 1).setFormula(formulasE);
-    sheet.getRange(2, 6, lastRow - 1, 1).setFormula(formulasF);
-    sheet.getRange(2, 7, lastRow - 1, 1).setFormula(formulasG);
-  }
-
-  // Delete columns H-Z
-  sheet.deleteColumns(8, 19);
-
-  // Delete empty rows
-  const dataRange = sheet.getDataRange();
-  const allData = dataRange.getValues();
-  for (let i = allData.length - 1; i >= 0; i--) {
-    if (allData[i].every(value => value === '')) {
-      sheet.deleteRow(i + 1);
-    }
-  }
-
-  // Set column sizes
-  sheet.autoResizeColumn(1);
-  sheet.setColumnWidth(4, 150);
-  sheet.setColumnWidth(5, 150);
-  sheet.setColumnWidth(6, 150);
-  sheet.setColumnWidth(7, 150);
-
-  // Apply conditional formatting rules
-  const rangeD = sheet.getRange("D2:D" + lastRow);
-  const ruleD = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("google")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeD])
-    .build();
-
-  const rangeE = sheet.getRange("E2:E" + lastRow);
-  const ruleE = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("_spf.google.com")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeE])
-    .build();
-
-  const rangeF = sheet.getRange("F2:F" + lastRow);
-  const ruleF = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("v=dkim1;")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeF])
-    .build();
-
-  const rangeG = sheet.getRange("G2:G" + lastRow);
-  const ruleG = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains("v=dmarc")
-    .setBackground("#b7e1cd")
-    .setRanges([rangeG])
-    .build();
-
-  const ruleDRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("google")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeD])
-    .build();
-
-  const ruleERed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("_spf.google.com")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeE])
-    .build();
-
-  const ruleFRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("v=dkim1;")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeF])
-    .build();
-
-  const ruleGRed = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextDoesNotContain("v=dmarc")
-    .setBackground("#ffb6c1")
-    .setRanges([rangeG])
-    .build();
-
-  const rules = [ruleD, ruleE, ruleF, ruleG, ruleDRed, ruleERed, ruleFRed, ruleGRed];
-  sheet.setConditionalFormatRules(rules);
-
-  // --- Add Persistent Toast Notification ---
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    "If you use a third-party mail gateway or a SPF flattener, records may be highlighted red and should be manually inspected.", 
-    "Instructions", 
-    -1 // Persistent toast
-  );
-// --- Add Filter View ---
-const filterRange = sheet.getRange('B1:G' + lastRow);  // Define the filter range
-filterRange.createFilter();
-
-  // --- Freeze Row 1 ---
-  sheet.setFrozenRows(1); 
+  return domainList;
 }
 
-function NSLookup(type, domain) { //Function takes DNS record type and domain as input
+function getDnsRecords(domainList) {
+  const dnsResults = [];
+  const delayBetweenCalls = 100; // milliseconds
 
-  if (typeof type == 'undefined') { //Validation for record type and domain
-    throw new Error('Missing parameter 1 dns type');
+  for (let i = 0; i < domainList.length; i++) {
+    const domain = domainList[i][0];
+
+    let mxRecords = performGoogleDNSLookup("MX", domain);
+    Utilities.sleep(delayBetweenCalls);
+
+    let spfRecords = performGoogleDNSLookup("TXT", domain);
+    Utilities.sleep(delayBetweenCalls);
+
+    let dkimRecords = performGoogleDNSLookup("TXT", "google._domainkey." + domain);
+    Utilities.sleep(delayBetweenCalls);
+
+    let dmarcRecords = performGoogleDNSLookup("TXT", "_dmarc." + domain);
+    Utilities.sleep(delayBetweenCalls);
+
+
+    mxRecords.data = mxRecords.data || "No MX records found";
+    spfRecords.data = spfRecords.data || "No SPF records found";
+    dkimRecords.data = dkimRecords.data || "No DKIM records found";
+    dmarcRecords.data = dmarcRecords.data || "No DMARC records found";
+
+    dnsResults.push({
+      mxRecords: mxRecords,
+      spfRecords: spfRecords,
+      dkimRecords: dkimRecords,
+      dmarcRecords: dmarcRecords
+    });
   }
+  return dnsResults;
+}
 
-  if (typeof domain == 'undefined') {
-    throw new Error('Missing parameter 2 domain name');
-  }
+/**
+ * Performs a DNS lookup using Google Public DNS.
+ * @param {string} type The DNS record type (e.g., "MX", "TXT").
+ * @param {string} domain The domain to lookup.
+ * @return {object} An object with the DNS data and a status message.
+ **/
 
-  type = type.toUpperCase(); //Convert record type to uppercase
+function performGoogleDNSLookup(type, domain) {
+  const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(type)}`;
+  const maxRetries = 3;
+  let status = ""; // Intialize status
 
-  const url = 'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(domain) + '&type=' + encodeURIComponent(type); //Concatenate URL query 
+  for (let retry = 0; retry <= maxRetries; retry++) {
+    try {
+      const options = {
+        muteHttpExceptions: true,
+        followRedirects: true // Important to handle redirects.
+      };
+      const response = UrlFetchApp.fetch(url, options);
+      const httpCode = response.getResponseCode();
+      const contentText = response.getContentText(); // Get content for error logging.
 
-  const options = {
-    muteHttpExceptions: true,
-    headers: {
-      accept: "application/dns-json"
+      if (httpCode === 200) {
+        const data = JSON.parse(contentText);
+        if (data.Answer) {
+          const outputData = data.Answer.map(record => record.data);
+          return {
+            data: outputData.join('\n'),
+            status: "Lookup Complete" // Set successful status for this record type
+          };
+        } else {
+          // No Answer Section
+          return {
+            data: "",
+            status: "No records found" // Set status for no records found
+          }; // Return empty string for no record found
+        }
+      } else if (httpCode === 429) {
+        // Handle Too Many Requests
+        status = `Too Many Requests`; // Status message
+        Logger.warn(`Google Public DNS 429 Too Many Requests for ${domain} (${type}).  Manual check recommended after a cool-down period.`);
+        const retryAfter = response.getHeaders()['Retry-After'];
+        let waitTime = retryAfter ? parseInt(retryAfter, 10) : 60; // Default to 60 seconds if header is missing
+        waitTime = Math.min(waitTime, 300); // Limit wait to 5 minutes.
+        Logger.log(`Waiting ${waitTime} seconds before retrying...`);
+        Utilities.sleep(waitTime * 1000); // Wait in milliseconds
+        // Do NOT return here.  Let the retry happen.
+      } else if (httpCode === 500 || httpCode === 502) {
+        // Handle Internal Server Error and Bad Gateway (Retry)
+        status = `Internal Error`; // Status message
+        Logger.warn(`Google Public DNS HTTP Error ${httpCode} for ${domain} (${type}).  Manual check recommended.`);
+        Utilities.sleep(1000 * Math.pow(2, retry));  // Exponential Backoff
+        // Do NOT return here.  Let the retry happen.
+      } else if (httpCode === 400 || httpCode === 413 || httpCode === 414 || httpCode === 415) {
+        // Handle Permanent Errors (Don't Retry)
+        status = `Bad Request`; // Status message
+        Logger.error(`Google Public DNS HTTP Error ${httpCode} for ${domain} (${type}): ${contentText}`);
+        return { data: "", status: status }; // Don't retry bad request, payload too large etc.
+      } else if (httpCode === 301 || httpCode === 308) {
+        //Handle redirects and log.
+        status = `Redirect`; // Status message
+        Logger.log(`Google Public DNS HTTP Redirect ${httpCode} for ${domain} (${type}).`);
+        return { data: "", status: status }; //Return empty string since fetch is following redirects.
+      }
+      else {
+        // Unhandled HTTP Error
+        status = `Other Error`; // Status message
+        Logger.error(`Google Public DNS Unhandled HTTP Error ${httpCode} for ${domain} (${type}): ${contentText}`);
+        return { data: "", status: status };
+      }
+    } catch (error) {
+      status = `Exception`; // Status message
+      Logger.error(`Error fetching DNS data from Google Public DNS for ${domain} (${type}): ${error}`);
+      return { data: "", status: status };
     }
-  };
-
-  const result = UrlFetchApp.fetch(url, options);
-  const rc = result.getResponseCode();
-  const resultText = result.getContentText();
-
-  if (rc !== 200) {
-    throw new Error(rc);
-  }
-
-  const errors = [
-    { name: "NoError", description: "No Error"}, // 0
-    { name: "FormErr", description: "Format Error"}, // 1
-    { name: "ServFail", description: "Server Failure"}, // 2
-    { name: "NXDomain", description: "Non-Existent Domain"}, // 3
-    { name: "NotImp", description: "Not Implemented"}, // 4
-    { name: "Refused", description: "Query Refused"}, // 5
-    { name: "YXDomain", description: "Name Exists when it should not"}, // 6
-    { name: "YXRRSet", description: "RR Set Exists when it should not"}, // 7
-    { name: "NXRRSet", description: "RR Set that should exist does not"}, // 8
-    { name: "NotAuth", description: "Not Authorized"} // 9
-  ];
-
-  const response = JSON.parse(resultText);
-
-  if (response.Status !== 0) {
-    return errors[response.Status].name;
-  }
-
-  const outputData = [];
-
-  for (const i in response.Answer) {
-    outputData.push(response.Answer[i].data);
-  }
-
-  const outputString = outputData.join('\n');
-
-  return outputString;
+  } // End Retry Loop
+  status = `Multiple Retries Failed`; // Status Message
+  Logger.error(`Failed to retrieve DNS record for ${domain} (${type}) after multiple retries.`);
+  return { data: "", status: status };
 }

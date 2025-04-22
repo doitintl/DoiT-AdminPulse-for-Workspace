@@ -53,11 +53,12 @@ function promptFetchAndListPolicies() {
   }
 }
 
+
 // Function to run 'List Domains' script with a confirmation prompt
 function promptGetDomainList() {
   var response = Browser.msgBox(
     'List Domains Confirmation',
-    'This will execute the script for listing domains and DNS records. Click OK to proceed. An external service (Cloudflare) will be used to return DNS results.',
+    'This will execute the script for listing domains and DNS records. Click OK to proceed.  Calls will be made to Google DNS to return DNS records.',
     Browser.Buttons.OK_CANCEL
   );
 
@@ -68,19 +69,6 @@ function promptGetDomainList() {
 
 function fetchInfo() {
   Utilities.sleep(1000);
-}
-
-// Function to run 'List Domains' script with a confirmation prompt
-function promptGetDomainList() {
-  var response = Browser.msgBox(
-    'List Domains Confirmation',
-    'This will execute the script for listing domains and DNS records. Click OK to proceed. An external service (Cloudflare) will be used to return DNS results.',
-    Browser.Buttons.OK_CANCEL
-  );
-
-  if (response == 'ok') {
-    getDomainList();
-  }
 }
 
 //Function to run all scripts
