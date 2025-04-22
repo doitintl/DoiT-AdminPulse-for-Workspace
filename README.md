@@ -2,6 +2,13 @@
 
 A tool by DoiT for Workspace administrators to review their security posture and inventory the admin SDK.
 
+
+<a href="https://workspace.google.com/marketplace/app/doit_adminpulse_for_workspace/639424393187?pann=b">
+  <img src="https://workspace.google.com/static/img/marketplace/en/gwmBadge.svg?style=flat-square" alt="Google Workspace Marketplace" height="68px">
+</a>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/doitintl/DoiT-AdminPulse-for-Workspace/blob/main/LICENSE)
+
 ## Overview:
 
 This is a free and open-source tool by DoiT developed for Google Workspace™ Administrators to conduct a comprehensive security review of their organization's Google Workspace™ or Cloud Identity environments.
