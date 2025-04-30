@@ -203,12 +203,10 @@ function fetchAndListPolicies() {
       });
 
       hasNextPage = !!nextPageToken;
-      // Utilities.sleep(100); // Optional short sleep
+       Utilities.sleep(100);
 
     } catch (error) {
       Logger.log(`ERROR during policy fetch (Page ${pageCount}): ${error.message}. Stopping pagination.`);
-      // Optionally alert user if interactive
-      // SpreadsheetApp.getUi().alert(`An error occurred while fetching policies: ${error.message}. Check logs. Data might be incomplete.`);
       hasNextPage = false;
     }
   }
@@ -566,8 +564,6 @@ function createAdditionalServicesSheet() {
   Logger.log(`${sheetName} sheet processing completed.`);
 }
 
-// finalizeAdditionalServicesSheet is now handled by the generic finalizeSheet
-
 // =============================================
 // Workspace Security Checklist Sheet
 // =============================================
@@ -595,8 +591,6 @@ function createWorkspaceSecurityChecklistSheet() {
     sheet = ss.getSheetByName(sheetName);
     if(!sheet) {
         Logger.log(`ERROR: ${sheetName} sheet still not found after attempting copy. Cannot apply formulas.`);
-        // Optionally alert if interactive
-        // SpreadsheetApp.getUi().alert(`Critical Error: Could not create or find the ${sheetName} sheet.`);
         return;
     }
   } else {
@@ -841,8 +835,6 @@ function createWorkspaceSecurityChecklistSheet() {
            formulasApplied++;
         } catch (e) {
            Logger.log(`Error setting formula/value at row ${rowNumber} ('${policyText}'): ${e.message}`);
-           // Optionally set error values in cells, but careful not to overwrite placeholders
-           // sheet.getRange(rowNumber, 5, 1, 2).setValue('#FORMULA_ERROR!');
         }
       } else {
           // Log only once per key if definition is bad
@@ -851,7 +843,6 @@ function createWorkspaceSecurityChecklistSheet() {
              formulaMap[`_logged_error_${policyText}`] = true;
           }
           formulaErrors++;
-          // DO NOTHING to the cell
       }
     } else {
       // Key not found in map - DO NOTHING to the cell
@@ -887,8 +878,6 @@ function copyWorkspaceSecurityChecklistTemplate() {
     if(!templateSheet) {
       const message = `Error: Sheet named "${targetSheetName}" not found in the template spreadsheet (ID: ${templateId}). Unable to copy.`;
       Logger.log(message);
-      // Optionally alert if interactive
-      // SpreadsheetApp.getUi().alert(message);
       return false; // Indicate failure
     }
     Logger.log(`Found sheet "${targetSheetName}" in template.`);
