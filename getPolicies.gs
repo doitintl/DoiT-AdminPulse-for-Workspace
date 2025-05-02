@@ -650,10 +650,18 @@ function createWorkspaceSecurityChecklistSheet() {
        '=IFERROR(IF(ROWS(QUERY(Policies, "select C where B = \'apps access options\'", 0)) = 0,"/",IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'apps access options\'", 0))) > 1,"OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'apps access options\'", 0)), CHAR(10)&CHAR(10), CHAR(10))),TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'apps access options\'", 0)), CHAR(10)&CHAR(10), CHAR(10))))),"Policy Not Found")',
        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select D where B = \'apps access options\'", 0)), CHAR(10)&CHAR(10), CHAR(10))),"Allow users to install and run any app from the Marketplace")'
     ],
+      "Review third-party app access to core services": [
+      '=IFERROR(IF(ROWS(QUERY(Policies, "select C where B = \'unconfigured third party apps\'", 0)) = 0,"/",IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'unconfigured third party apps\'", 0))) > 1,"OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'unconfigured third party apps\'", 0)), CHAR(10)&CHAR(10), CHAR(10))),TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'unconfigured third party apps\'", 0)), CHAR(10)&CHAR(10), CHAR(10))))),"Policy Not Found")',
+      '=IFERROR(TRIM(JOIN(CHAR(10) & REPT("─", 20) & CHAR(10),QUERY(Policies, "select D where B = \'unconfigured third party apps\'", 0))),"(Default) Allow users to access any third-party apps.")'
+    ],
     "Block access to less secure apps": [
        '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'less secure apps\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'less secure apps\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'less secure apps\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select D where B = \'less secure apps\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), "Setting Not Found")'
     ],
+    "Control access to Google core services": [
+    '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'google services\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'google services\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'google services\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
+    '=IFERROR(TRIM(JOIN(CHAR(10) & REPT("─", 20) & CHAR(10), QUERY(Policies, "select D where B = \'google services\'", 0))),"All Google APIs are Unrestricted")'
+  ],
     "Limit external calendar sharing of primary calendars": [
        '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'primary calendar max allowed external sharing\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'primary calendar max allowed external sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'primary calendar max allowed external sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select D where B = \'primary calendar max allowed external sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), "Setting Not Found")'
@@ -855,7 +863,7 @@ function createWorkspaceSecurityChecklistSheet() {
 
   SpreadsheetApp.flush();
   Logger.log(`${sheetName} processing complete.`);
-  // Removed UI alert
+  SpreadsheetApp.getUi().alert('Workspace Policy Check is completed.');
 
 }
 
