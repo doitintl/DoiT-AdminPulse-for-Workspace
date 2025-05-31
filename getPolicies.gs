@@ -1,4 +1,7 @@
 let additionalServicesData = [];
+var orgUnitMap = new Map();
+var customerRootOuId = null;
+var actualCustomerId = null;
 
 // =============================================
 // Sheet Setup & Finalization Functions
@@ -43,96 +46,214 @@ function setupSheetHeader(sheet, header) {
   Logger.log(`Header set for sheet: ${sheet.getName()}`);
 }
 
-function finalizeSheet(sheet, numColumns) {
+function finalizeSheet(sheet, numVisibleColumns) { // Parameter is num *visible* columns
   try {
-    // Check if sheet object is valid
     if (!sheet || typeof sheet.getName !== 'function') {
-        Logger.log("Error finalizing sheet: Invalid sheet object provided.");
-        return;
+      Logger.log("Error finalizing sheet: Invalid sheet object provided."); return;
     }
     const sheetName = sheet.getName();
     Logger.log(`Finalizing sheet: ${sheetName}...`);
 
-    const lastRow = sheet.getLastRow();
-    const lastCol = sheet.getLastColumn();
-    const maxRows = sheet.getMaxRows();
+    const lastRowWithContent = sheet.getLastRow();
+    const currentLastCol = sheet.getLastColumn(); // Current last column, might be > numVisibleColumns if query col was just hidden
+    const maxRowsInGrid = sheet.getMaxRows();
+    const frozenRows = sheet.getFrozenRows();
 
-    // Auto-resize columns used
-    if (lastCol > 0 && numColumns > 0 && lastRow > 0) { // Only resize if there's content
-        try {
-           sheet.autoResizeColumns(1, Math.min(lastCol, numColumns));
-        } catch (e) {
-            Logger.log(` Minor error during autoResizeColumns for ${sheetName}: ${e.message}`);
+    // Auto-resize visible columns that have content
+    if (lastRowWithContent > frozenRows && numVisibleColumns > 0) {
+        try { sheet.autoResizeColumns(1, numVisibleColumns); }
+        catch (e) { Logger.log(`Minor error autoResizeColumns for ${sheetName}: ${e}`); }
+    }
+
+    // Delete unused columns (those beyond the *original* intended number of columns before hiding)
+    // If Policy Query was column 5, and we hide it, numVisibleColumns is 4.
+    // But the sheet might still have 5 columns. This needs careful thought if columns are hidden *before* this.
+    // Assuming numVisibleColumns is the count of columns that SHOULD remain.
+    if (currentLastCol > numVisibleColumns) {
+        // If columns were hidden, getLastColumn might be less than actual data extent.
+        // It's safer to use sheet.getMaxColumns() if we want to clear everything to the right.
+        // For now, let's assume numVisibleColumns means actual final count.
+        const actualDataLastCol = sheet.getRange("A1").offset(0, sheet.getMaxColumns()-1).getColumn(); // True last possible col
+        if (actualDataLastCol > numVisibleColumns) {
+             sheet.deleteColumns(numVisibleColumns + 1, actualDataLastCol - numVisibleColumns);
+             Logger.log(`Deleted ${actualDataLastCol - numVisibleColumns} excess columns from ${sheetName}`);
         }
     }
 
-    // Delete unused columns
-    if (lastCol > numColumns) {
-      sheet.deleteColumns(numColumns + 1, lastCol - numColumns);
-      Logger.log(`Deleted ${lastCol - numColumns} excess columns from ${sheetName}`);
+
+    // Delete unused rows at the end
+    if (lastRowWithContent < maxRowsInGrid) {
+        const firstBlankRow = lastRowWithContent + 1;
+        if (lastRowWithContent === frozenRows && frozenRows > 0 && firstBlankRow === frozenRows + 1) {
+            if (maxRowsInGrid > firstBlankRow) { // If there's more than one non-frozen row
+                sheet.deleteRows(firstBlankRow +1, maxRowsInGrid - firstBlankRow); // Keep one blank row after header
+                Logger.log(`Deleted ${maxRowsInGrid - firstBlankRow} excess rows from ${sheetName} (had only frozen rows, kept one blank).`);
+            } else {
+                Logger.log(`Sheet ${sheetName} has only frozen rows and possibly one blank. No excess rows to delete.`);
+            }
+        } else if (firstBlankRow <= maxRowsInGrid) {
+            const numRowsToDelete = maxRowsInGrid - firstBlankRow + 1;
+            if (numRowsToDelete > 0) {
+                sheet.deleteRows(firstBlankRow, numRowsToDelete);
+                Logger.log(`Deleted ${numRowsToDelete} excess rows from ${sheetName}.`);
+            }
+        }
     }
 
-    // Delete unused rows
-    if (lastRow >= 0 && lastRow < maxRows) { // Check lastRow >= 0
-      const rowsToDelete = maxRows - Math.max(lastRow, 1); // Ensure at least 1 row remains if empty
-      if (rowsToDelete > 0) {
-         // Need to handle case where lastRow is 0 (only header)
-         const startDeleteRow = Math.max(lastRow + 1, 2); // Start deleting from row 2 if sheet was empty
-         if (startDeleteRow <= maxRows) {
-             sheet.deleteRows(startDeleteRow, rowsToDelete);
-             Logger.log(`Deleted ${rowsToDelete} excess rows from ${sheetName}`);
-         }
+    // Sort if data exists (more than just a header row)
+    if (lastRowWithContent > Math.max(1, frozenRows)) {
+      const sortLastCol = Math.min(sheet.getLastColumn(), numVisibleColumns);
+      if (sortLastCol > 0) {
+        try {
+          const firstDataRow = frozenRows + 1;
+          const numDataRows = lastRowWithContent - frozenRows;
+          if (numDataRows > 0) {
+            sheet.getRange(firstDataRow, 1, numDataRows, sortLastCol).sort({ column: 1, ascending: true });
+            Logger.log(`Sorted data in ${sheetName}`);
+          }
+        } catch (e) { Logger.log(`Error sorting data in ${sheetName}: ${e}`); }
       }
     }
-
-    // Sort if data exists (rows > 1)
-    if (lastRow > 1) {
-      const sortLastCol = Math.min(sheet.getLastColumn(), numColumns); // Use current last column after deletes
-       if (sortLastCol > 0) {
-         try {
-            sheet.getRange(2, 1, lastRow - 1, sortLastCol).sort({ column: 1, ascending: true });
-            Logger.log(`Sorted data in ${sheetName}`);
-         } catch (e) {
-            Logger.log(`Error sorting data in ${sheetName}: ${e.message}`);
-         }
-       }
-    }
-     Logger.log(`Finalized sheet: ${sheetName}`);
-  } catch (e) {
-      Logger.log(`Error finalizing sheet ${sheet ? sheet.getName() : 'undefined'}: ${e.message} - Stack: ${e.stack}`);
-  }
+    Logger.log(`Finalized sheet: ${sheetName}`);
+  } catch (e) { Logger.log(`Error finalizing sheet ${sheet ? sheet.getName() : 'undefined'}: ${e.message} - Stack: ${e.stack}`); }
 }
 
+
+
+// =============================================
+// NEW FUNCTION to build map from sheet
+// =============================================
+// =============================================
+// Org Unit Map Population (CORRECTED for key consistency & #ERROR! logging)
+// =============================================
+function populateOrgUnitMapFromSheet() {
+  orgUnitMap.clear(); // Assumes orgUnitMap is a global Map instance
+  Logger.log("Attempting to populate global orgUnitMap from 'Org Units' sheet...");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const orgUnitsSheet = ss.getSheetByName("Org Units");
+
+  if (!orgUnitsSheet) {
+    Logger.log("ERROR: 'Org Units' sheet not found. Cannot populate orgUnitMap from sheet.");
+    return false;
+  }
+
+  const lastRow = orgUnitsSheet.getLastRow();
+  if (lastRow < 2) {
+    Logger.log("WARNING: 'Org Units' sheet has no data beyond header. Global orgUnitMap will be empty.");
+    return true; // Map is empty, but the function didn't fail to execute.
+  }
+
+  // Assuming Col A (index 0 in 'values' array): Org Unit ID (Raw)
+  // Assuming Col C (index 2 in 'values' array): OrgUnit Path
+  const idColumnIndex = 0;
+  const pathColumnIndex = 2;
+  const maxColToRead = Math.max(idColumnIndex, pathColumnIndex) + 1; // 1-based for getRange
+
+  const range = orgUnitsSheet.getRange(2, 1, lastRow - 1, maxColToRead);
+  const values = range.getValues();
+
+  let entriesAdded = 0;
+  values.forEach((row, index) => {
+    const rawOrgId = row[idColumnIndex];
+    const orgPathValue = row[pathColumnIndex]; // Get the value from the sheet
+
+    // Check if rawOrgId is valid and orgPathValue is not null/undefined
+    // (typeof orgPathValue === 'string' was good, but let's handle cases where it might be a Sheets error object directly)
+    if (rawOrgId && String(rawOrgId).trim() !== "") {
+      let mapKey = String(rawOrgId).trim();
+      // Ensure all keys in orgUnitMap have the 'id:' prefix
+      if (!mapKey.startsWith("id:")) {
+        mapKey = "id:" + mapKey;
+      }
+
+      let cleanOrgPath;
+      if (orgPathValue === null || orgPathValue === undefined) {
+        cleanOrgPath = "PATH_MISSING_IN_SHEET"; // Or some other indicator
+        Logger.log(`WARNING: Path is missing/null for OU ID '${mapKey}' from 'Org Units' sheet, row ${index + 2}. Using placeholder.`);
+      } else {
+        cleanOrgPath = String(orgPathValue).trim(); // Convert to string and trim
+      }
+      
+      // Check for "#ERROR!" string explicitly after converting to string
+      if (cleanOrgPath.toUpperCase().includes("#ERROR!") || cleanOrgPath.toUpperCase().includes("#N/A") || cleanOrgPath.toUpperCase().includes("#VALUE!") || cleanOrgPath.toUpperCase().includes("#REF!") || cleanOrgPath.toUpperCase().includes("#DIV/0!") || cleanOrgPath.toUpperCase().includes("#NUM!") || cleanOrgPath.toUpperCase().includes("#NAME?") || cleanOrgPath.toUpperCase().includes("#NULL!")) {
+          Logger.log(`WARNING: Reading problematic path value ('${cleanOrgPath}') for OU ID '${mapKey}' from 'Org Units' sheet, row ${index + 2}. This will likely cause issues downstream.`);
+      }
+      
+      orgUnitMap.set(mapKey, cleanOrgPath);
+      entriesAdded++;
+    } else {
+      // Logger.log(`Skipping row ${index + 2} in 'Org Units' sheet during map population (missing ID or Path was not a string). ID: '${rawOrgId}', Path: '${orgPathValue}'`);
+    }
+  }); // Correctly closes the forEach callback
+
+  Logger.log(`Global orgUnitMap populated from sheet with ${entriesAdded} entries. Final map size: ${orgUnitMap.size}`);
+
+  // Enhanced Debug for root ID
+  // Ensure customerRootOuId is the raw ID string like "C0xxxxxxx" (defined globally)
+  const testRootOuApiId = customerRootOuId ? "id:" + customerRootOuId : "id:YOUR_FALLBACK_ROOT_OU_ID_HERE"; // Use a relevant fallback if customerRootOuId might be empty
+  if (orgUnitMap.has(testRootOuApiId)) {
+    const mappedPath = orgUnitMap.get(testRootOuApiId);
+    Logger.log(`populateOrgUnitMapFromSheet: Global map CONTAINS root ID "${testRootOuApiId}" with path: "${mappedPath}" (Expected path should be: "/")`);
+    if (mappedPath !== "/") {
+        Logger.log(`WARNING: Root ID "${testRootOuApiId}" is in map, but its path is NOT "/". Path found: "${mappedPath}". This will affect root policy mapping.`);
+    }
+  } else {
+    Logger.log(`populateOrgUnitMapFromSheet: WARNING - Global map DOES NOT CONTAIN the expected root ID "${testRootOuApiId}" after reading from sheet. This will significantly affect root policy mapping.`);
+    // Check if any key maps to "/" as a fallback to identify a potential root
+    let pathSlashExists = false;
+    let keyForSlashPath = "";
+    for (const [key, value] of orgUnitMap.entries()) {
+        if (value === "/") {
+            pathSlashExists = true;
+            keyForSlashPath = key;
+            break;
+        }
+    }
+    if (pathSlashExists) {
+        Logger.log(`INFO: Found a path "/" in orgUnitMap associated with key: "${keyForSlashPath}". This might be the root OU if the expected ID ("${testRootOuApiId}") was not found or misconfigured.`);
+    } else {
+        Logger.log('CRITICAL WARNING: No entry in orgUnitMap has the path "/" for the root OU. Root policy resolution will fail.');
+    }
+  }
+  return true;
+}
 
 // =============================================
 // Policy Fetching & Processing
 // =============================================
 
 function fetchAndListPolicies() {
-  // --- Call Dependency Functions ---
-  // Assumes getGroupsSettings() and getOrgUnits() exist elsewhere and
-  // successfully create the required Named Ranges before this point.
+  additionalServicesData = [];
+
   try {
-      getGroupsSettings(); // Expected to create/update 'GroupID' named range
-      getOrgUnits();       // Expected to create/update 'OrgID2Path', 'Org2ParentPath' named ranges
-      Logger.log("Dependency functions getGroupsSettings() and getOrgUnits() executed.");
-  } catch(e) {
-       Logger.log(`CRITICAL ERROR: Failed running getGroupsSettings or getOrgUnits: ${e.message}. VLOOKUPs will fail.`);
-       // Optionally alert user if running interactively
-       // SpreadsheetApp.getUi().alert(`Error running setup functions: ${e.message}. Script cannot continue reliably.`);
-       return; // Stop if dependencies fail
+    Logger.log("Executing getGroupsSettings()...");
+    getGroupsSettings(); // Assumed to populate "Group Settings" sheet and "GroupID" named range
+
+    Logger.log("Executing getOrgUnits() to populate 'Org Units' sheet...");
+    getOrgUnits(); // Assumed to populate "Org Units" sheet correctly
+
+    Logger.log("Executing populateOrgUnitMapFromSheet() to build global map...");
+    const mapPopulatedSuccess = populateOrgUnitMapFromSheet();
+
+    if (!mapPopulatedSuccess || orgUnitMap.size === 0) {
+      Logger.log("CRITICAL ERROR: Global orgUnitMap could not be populated or is empty. Aborting policy fetch.");
+      // SpreadsheetApp.getUi().alert("Error: OU information could not be loaded. Policy report may be incomplete.");
+      return;
+    }
+    Logger.log(`Global orgUnitMap is ready with ${orgUnitMap.size} entries.`);
+
+  } catch (e) {
+    Logger.log(`CRITICAL ERROR during dependency functions or map population: ${e.toString()} - Stack: ${e.stack}`);
+    return;
   }
-  // --- End Dependency Calls ---
 
   const urlBase = "https://cloudidentity.googleapis.com/v1beta1/policies";
-  const pageSize = 100;
+  const pageSize = 100; // Max allowed by API is 100 for policies.list
   let nextPageToken = "";
   let hasNextPage = true;
 
   const params = {
-    headers: {
-      Authorization: `Bearer ${ScriptApp.getOAuthToken()}`,
-    },
+    headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
     muteHttpExceptions: true,
     method: 'get'
   };
@@ -145,183 +266,275 @@ function fetchAndListPolicies() {
     sheet = ss.insertSheet(sheetName);
     Logger.log(`Sheet '${sheetName}' created.`);
   } else {
-    // Clear content below header, preserve header formatting
-    if (sheet.getLastRow() > 1) {
-       sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+    if (sheet.getLastRow() > 1) { // Clear content below header
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getMaxColumns()).clearContent();
     }
     Logger.log(`Cleared contents (below header) of sheet '${sheetName}'.`);
   }
 
-  const header = ["Category", "Policy Name", "Org Unit ID", "Setting Value", "Policy Query"];
-  setupSheetHeader(sheet, header); // Pass the header array
+  const header = ["Category", "Policy Name", "OU Path / Group ID", "Setting Value", "Policy Query"];
+  setupSheetHeader(sheet, header);
 
-  const policyMap = {};
-  additionalServicesData = [];
-
-  Logger.log("Starting policy fetch loop...");
-  let totalFetched = 0;
+  const policyMap = {}; // Using a map to handle potential duplicates/overrides
+  Logger.log("Starting policy fetch loop (this will fetch ALL pages)...");
+  let totalFetchedPolicies = 0;
   let pageCount = 0;
+  let apiCallErrors = 0;
 
   while (hasNextPage) {
     pageCount++;
-    let url = `${urlBase}?pageSize=${pageSize}`;
-    if (nextPageToken) {
-      url += `&pageToken=${nextPageToken}`;
-    }
+    // The query URL for listing policies generally does not take a 'query' parameter itself.
+    // It lists all policies. The 'policyQuery' is a field *within* the policy object.
+    // An "empty query" to get everything is achieved by not adding specific filter parameters to the list call.
+    let url = `${urlBase}?pageSize=${pageSize}${nextPageToken ? '&pageToken=' + nextPageToken : ''}`;
+    Logger.log(`Fetching Page ${pageCount}. URL: ${url.substring(0, url.indexOf('?') + 15)}... (pageSize & token)`);
 
-    Logger.log(`Fetching Page ${pageCount}.`);
-
+    let response;
+    let responseBody;
     try {
-      const response = UrlFetchApp.fetch(url, params);
+      response = UrlFetchApp.fetch(url, params);
+      responseBody = response.getContentText();
       const responseCode = response.getResponseCode();
-      const responseBody = response.getContentText();
 
-      if (responseCode !== 200) {
-        let errorMessage = responseBody;
-        try {
-           const errorJson = JSON.parse(responseBody);
-           errorMessage = errorJson.error ? JSON.stringify(errorJson.error) : responseBody;
-        } catch (parseError) { /* Ignore */ }
-        throw new Error(`HTTP error ${responseCode}: ${errorMessage}`);
-      }
+      if (responseCode === 200) {
+        const jsonResponse = JSON.parse(responseBody);
+        const policies = jsonResponse.policies || [];
+        nextPageToken = jsonResponse.nextPageToken || "";
+        hasNextPage = !!nextPageToken;
+        totalFetchedPolicies += policies.length;
+        Logger.log(`Fetched ${policies.length} policies (Page ${pageCount}). Total cumulative: ${totalFetchedPolicies}. NextPage: ${hasNextPage}`);
 
-      const jsonResponse = JSON.parse(responseBody);
-      const policies = jsonResponse.policies || [];
-      nextPageToken = jsonResponse.nextPageToken || "";
-      totalFetched += policies.length;
-      Logger.log(`Fetched ${policies.length} policies (Page ${pageCount}). Total: ${totalFetched}. NextPage: ${!!nextPageToken}`);
+        policies.forEach(policy => {
+          // Log raw policy for deeper debugging if settings are still missing
+          // Logger.log(`Raw policy from API: ${JSON.stringify(policy)}`);
+          const policyData = processPolicy(policy);
 
-      policies.forEach(policy => {
-        const policyData = processPolicy(policy); // Returns object with raw GroupID or OU formula string in orgUnitId field
-        if (policyData) {
-          // Key uses the raw ID or formula string - this is ok for map uniqueness
-          const policyKey = `${policyData.category}-${policyData.policyName}-${policyData.orgUnitId}`;
-          if (!policyMap[policyKey] || (policyData.type === 'ADMIN' && policyMap[policyKey].type !== 'ADMIN')) {
-            policyMap[policyKey] = policyData;
+          if (policyData && typeof policyData.orgUnitId === 'string') { // Check orgUnitId is a string
+            const policyKey = `${policyData.category}-${policyData.policyName}-${policyData.orgUnitId}`;
+            const existingPolicyInMap = policyMap[policyKey];
+
+            // Prefer 'ADMIN' type policies. If types are same or new is not ADMIN, keep first encountered.
+            if (!existingPolicyInMap || (policyData.type === 'ADMIN' && existingPolicyInMap.type !== 'ADMIN')) {
+              policyMap[policyKey] = policyData;
+            }
+          } else if (policyData && policyData.orgUnitId === undefined) {
+            Logger.log(`WARNING: processPolicy returned data but orgUnitId is undefined. Raw policy setting type: ${policy.setting ? policy.setting.type : 'N/A'}, Policy Query: ${JSON.stringify(policy.policyQuery)}`);
+          } else if (!policyData) {
+            Logger.log(`WARNING: processPolicy returned null. Raw policy setting type: ${policy.setting ? policy.setting.type : 'N/A'}, Policy Query: ${JSON.stringify(policy.policyQuery)}`);
           }
+        });
+      } else {
+        Logger.log(`ERROR: API call failed for Page ${pageCount}. HTTP ${responseCode}. Response: ${responseBody.substring(0, 500)}`);
+        apiCallErrors++;
+        if (apiCallErrors > 3) { // Arbitrary limit to prevent infinite loops on persistent errors
+             Logger.log("Too many API errors. Aborting policy fetch loop.");
+             hasNextPage = false; // Stop trying
         }
-      });
-
-      hasNextPage = !!nextPageToken;
-       Utilities.sleep(100);
-
-    } catch (error) {
-      Logger.log(`ERROR during policy fetch (Page ${pageCount}): ${error.message}. Stopping pagination.`);
-      hasNextPage = false;
+        // Consider a small delay before retrying the same pageToken, or just break
+        Utilities.sleep(2000); // Wait 2s before potential next attempt (if hasNextPage was true due to previous token)
+        // If error on first page, nextPageToken is still "", loop might retry first page.
+        // If error on subsequent page, it will retry with same nextPageToken.
+        // This simple retry might not be robust enough for all scenarios.
+      }
+    } catch (e) {
+      Logger.log(`EXCEPTION during UrlFetchApp or JSON.parse for Page ${pageCount}: ${e.message}. Response (first 500 chars): ${responseBody ? responseBody.substring(0,500) : 'N/A'}. Stack: ${e.stack}`);
+      apiCallErrors++;
+      if (apiCallErrors > 3) {
+           Logger.log("Too many critical errors. Aborting policy fetch loop.");
+           hasNextPage = false;
+      }
+      Utilities.sleep(2000);
     }
-  }
-  Logger.log("Policy fetch loop finished.");
+     if (pageCount > 200 && hasNextPage) { // Safety break for very large number of pages / runaway loop
+        Logger.log("WARNING: Exceeded 200 pages. Breaking loop as a precaution.");
+        hasNextPage = false;
+    }
+  } // End while hasNextPage
 
-  // Prepare rows for the sheet. Org Unit ID column contains raw IDs or formula strings.
-  const rows = Object.values(policyMap).map(policyData => [
-    policyData.category,
-    policyData.policyName,
-    policyData.orgUnitId,
-    policyData.settingValue,
-    policyData.policyQuery
+  Logger.log(`Policy fetch loop completed. Total policies processed into map (pre-filtering): ${Object.keys(policyMap).length}`);
+
+  const rows = Object.values(policyMap).map(data => [
+    data.category,
+    data.policyName,
+    data.orgUnitId, // This is the OU Path string or Group ID string
+    data.settingValue,
+    data.policyQuery
   ]);
 
   if (rows.length > 0) {
-    Logger.log(`Writing ${rows.length} rows to the sheet.`);
-    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows); // Write data including formulas/IDs
-
-    // Apply VLOOKUP to ONLY the raw Group IDs AFTER writing
-    applyVlookupToOrgUnitId(sheet);
-
-    sheet.hideColumns(5); // Hide Policy Query column
-    Logger.log("Applied Group VLOOKUPs (if any) and hid Policy Query column.");
-
+    Logger.log(`Writing ${rows.length} unique/prioritized policies to sheet '${sheetName}'.`);
+    // Example debug for the first row's target
+    // Logger.log(`First policy row to be written - Target (Col C): '${rows[0][2]}', Category: '${rows[0][0]}', Name: '${rows[0][1]}'`);
+    sheet.getRange(2, 1, rows.length, header.length).setValues(rows); // Use header.length for num columns
+    
+    Logger.log("Applying VLOOKUPs for Group names in 'Cloud Identity Policies' sheet...");
+    applyVlookupToOrgUnitId(sheet); // This function targets column C for Group ID lookups
+    
+    const policyQueryColumnIndex = header.indexOf("Policy Query") + 1;
+    if (policyQueryColumnIndex > 0) {
+        sheet.hideColumns(policyQueryColumnIndex);
+        Logger.log("Hid 'Policy Query' column.");
+    } else {
+        Logger.log("Could not find 'Policy Query' column to hide.");
+    }
   } else {
-    Logger.log("No policy data to write to the sheet.");
+    Logger.log("No policy data to write to the 'Cloud Identity Policies' sheet.");
   }
 
-  // Finalize the sheet (resize, delete extra rows/cols, sort)
-  finalizeSheet(sheet, 4); // Keep first 4 columns visible
+  finalizeSheet(sheet, header.length - 1); // -1 because one column ("Policy Query") is hidden
 
-  Logger.log("Cloud Identity Policies sheet processing completed.");
-
-  // Update or create the "Policies" named range
+  Logger.log("'Cloud Identity Policies' sheet processing completed.");
   const lastPolicyRow = sheet.getLastRow();
-   if (lastPolicyRow >= 1) { // Needs at least header row
-       createOrUpdateNamedRange(sheet, "Policies", 1, 1, lastPolicyRow, 4); // Use 4 columns
-   } else {
-       Logger.log("Skipping 'Policies' named range creation as sheet is empty.");
-   }
+  if (lastPolicyRow >= 1) {
+    createOrUpdateNamedRange(sheet, "Policies", 1, 1, lastPolicyRow, header.length -1); // Use visible columns for named range
+  } else {
+    Logger.log("Skipping 'Policies' named range creation as 'Cloud Identity Policies' sheet is empty or header only.");
+  }
 
-
-  // Create dependent sheets
   createAdditionalServicesSheet();
-  createWorkspaceSecurityChecklistSheet(); // This will run last
+  createWorkspaceSecurityChecklistSheet();
+  Logger.log("All processing finished for fetchAndListPolicies.");
 }
 
-
 function processPolicy(policy) {
-  try {
-    let policyName = "";
-    let orgUnitId = ""; // Will hold raw Group ID, "SYSTEM", error string, or OU VLOOKUP formula string
-    let settingValue = "";
-    let policyQuery = "";
-    let category = "";
-    let type = "";
+   let policyName = "Unknown Policy Name";
+  let targetOuOrGroup = "Unknown Target"; // This will become the value for 'orgUnit' in additionalServicesData
+  let settingValue = "No setting value";
+  let policyQueryString = policy.policyQuery ? JSON.stringify(policy.policyQuery) : "{}";
+  let category = "general";
+  let type = policy.type || 'UNKNOWN_POLICY_TYPE'; // e.g., 'ADMIN', 'USER'
 
-    // Category and Policy Name Extraction
-    if (policy.setting && policy.setting.type) {
-      const settingType = policy.setting.type;
-      const parts = settingType.split('/');
-      if (parts.length > 1) {
-        const categoryPart = parts[1];
-        const dotIndex = categoryPart.indexOf('.');
-        category = (dotIndex !== -1) ? categoryPart.substring(0, dotIndex) : categoryPart;
-        policyName = (dotIndex !== -1) ? categoryPart.substring(dotIndex + 1) : categoryPart;
-        policyName = policyName.replace(/_/g, " ");
-      } else {
-        category = "N/A"; policyName = settingType;
-      }
-    } else {
-      category = "N/A"; policyName = "Unknown";
+  const rawSettingType = policy.setting && policy.setting.type ? policy.setting.type : "UnknownSettingType";
+
+  try {
+    let typeToParse = rawSettingType;
+
+    // 1. Strip known prefixes
+    if (typeToParse.startsWith("settings/")) {
+      typeToParse = typeToParse.substring("settings/".length);
+    }
+    const genericPrefixMatch = typeToParse.match(/^(booleans|strings|integers|listValue|enumValue|double)\/(.+)/);
+    if (genericPrefixMatch && genericPrefixMatch[2]) {
+      typeToParse = genericPrefixMatch[2];
     }
 
-    // Determine Target (Org Unit or Group) - Using Original Logic Pattern
+    // 2. Extract Category and Policy Name
+    const firstDot = typeToParse.indexOf('.');
+    const firstSlash = typeToParse.indexOf('/');
+
+    if (firstDot !== -1 && (firstSlash === -1 || firstDot < firstSlash)) { // Dot exists and is primary
+        category = typeToParse.substring(0, firstDot);
+        policyName = typeToParse.substring(firstDot + 1);
+    } else if (firstSlash !== -1) { // No dot before slash, or no dot at all
+        category = typeToParse.substring(0, firstSlash);
+        policyName = typeToParse.substring(firstSlash + 1);
+    } else { // No dot, no slash, or simple type
+        if (typeToParse.toLowerCase().startsWith("chrome.")) {
+            category = "chrome";
+            policyName = typeToParse.substring("chrome.".length);
+        } else if (typeToParse.toLowerCase().includes("chrome")) {
+            category = "chrome";
+            policyName = typeToParse;
+        } else {
+            category = "general"; // Fallback category
+            policyName = typeToParse; // Use the remaining string as policy name
+        }
+    }
+
+    // 3. Clean up names
+    category = String(category).replace(/_/g, " ").trim() || "general";
+    policyName = String(policyName).replace(/[._]/g, " ").trim() || rawSettingType; // Fallback to raw type if name is empty
+
+    // Logger.log(`Parsed: RawType='${rawSettingType}' -> Category='${category}', PolicyName='${policyName}'`);
+
+    // 4. Determine Target OU or Group
     if (policy.policyQuery && policy.policyQuery.query && policy.policyQuery.query.includes("groupId(")) {
       const groupIdRegex = /groupId\('([^']*)'\)/;
       const groupIdMatch = policy.policyQuery.query.match(groupIdRegex);
-      orgUnitId = (groupIdMatch && groupIdMatch[1]) ? groupIdMatch[1] : "Group ID not found in query"; // RAW Group ID
+      targetOuOrGroup = (groupIdMatch && groupIdMatch[1]) ? groupIdMatch[1] : `Group ID Parse Error: ${policy.policyQuery.query}`;
     } else if (policy.policyQuery && policy.policyQuery.orgUnit) {
-      orgUnitId = getOrgUnitValue(policy.policyQuery.orgUnit); // Get OU VLOOKUP FORMULA string
-    } else {
-      orgUnitId = "SYSTEM";
-    }
-
-    // Setting Value Processing
-    if (policy.setting && policy.setting.hasOwnProperty('value')) {
-      if (typeof policy.setting.value === 'object' && policy.setting.value !== null) {
-        settingValue = formatObject(policy.setting.value);
+      const rawOuTargetString = policy.policyQuery.orgUnit;
+      
+      if (rawOuTargetString.toLowerCase() === "orgunits/customer/my_customer") {
+        let rootPathFound = false;
+        // Prioritize mapping via customerRootOuId if available and path is "/" in orgUnitMap
+        // Assumes customerRootOuId is the raw customer ID like "C0xxxxxxx"
+        // Assumes orgUnitMap keys are prefixed like "id:C0xxxxxxx"
+        if (customerRootOuId && orgUnitMap.has("id:" + customerRootOuId) && orgUnitMap.get("id:" + customerRootOuId) === "/") {
+            targetOuOrGroup = "/";
+            rootPathFound = true;
+        } else { // Fallback: find any ID in orgUnitMap that points to path "/"
+            for (const [ou_id_in_map, ou_path_in_map] of orgUnitMap.entries()) {
+                if (ou_path_in_map === "/") {
+                    targetOuOrGroup = "/";
+                    rootPathFound = true;
+                    // Logger.log(`Mapped 'orgunits/customer/my_customer' to path "/" via fallback map entry: ${ou_id_in_map} -> ${ou_path_in_map}`);
+                    break; 
+                }
+            }
+        }
+        if (!rootPathFound) {
+            targetOuOrGroup = "/ (Root OU Not Mapped or Path Incorrect in orgUnitMap)";
+            Logger.log(`WARNING: Could not map 'orgunits/customer/my_customer' to path "/". CustomerRootOuId: '${customerRootOuId}'. Map lookup for 'id:${customerRootOuId}': ${orgUnitMap.get("id:"+customerRootOuId)}`);
+        }
       } else {
-        settingValue = String(policy.setting.value);
+        let idPart = rawOuTargetString.replace("orgUnits/", ""); // e.g., "id:03ph8a2z1a2gsfw" or "03ph8a2z1a2gsfw"
+        // Ensure 'id:' prefix for lookup, consistent with how populateOrgUnitMapFromSheet stores keys
+        let finalIdToLookup = idPart.startsWith("id:") ? idPart : "id:" + idPart;
+
+        if (orgUnitMap.has(finalIdToLookup)) {
+          targetOuOrGroup = orgUnitMap.get(finalIdToLookup); // This is where #ERROR! from the map would be retrieved
+        } else {
+          targetOuOrGroup = finalIdToLookup; // Fallback to the (prefixed) ID if not in map
+          Logger.log(`WARNING: OU ID '${finalIdToLookup}' (from API target '${rawOuTargetString}') not found in orgUnitMap. Using raw ID as target.`);
+        }
       }
     } else {
-      settingValue = "No setting value";
+      targetOuOrGroup = "SYSTEM_OR_UNSPECIFIED_TARGET"; // Default if no OU or Group query
+      // Logger.log(`Policy has no specific OU/Group target in policyQuery. Raw policy: ${JSON.stringify(policy)}`);
     }
 
-    // Store Query and Type
-    policyQuery = policy.policyQuery ? JSON.stringify(policy.policyQuery) : "{}";
-    type = policy.type || 'UNKNOWN';
+    // 5. Get Setting Value
+    if (policy.setting && policy.setting.hasOwnProperty('value')) {
+      settingValue = (typeof policy.setting.value === 'object' && policy.setting.value !== null) ?
+                     formatObject(policy.setting.value) : String(policy.setting.value);
+    } else {
+      settingValue = "NO_EXPLICIT_VALUE"; // Indicates the policy might be structural or value is elsewhere
+    }
 
-    // Populate Additional Services Data
-    if (policyName === "service status") {
+    // 6. Populate additionalServicesData for "service status" policies
+    if (String(policyName).toLowerCase().trim() === "service status") {
+      // *** ADDED DEBUG LOGGING HERE for targetOuOrGroup issues ***
+      if (typeof targetOuOrGroup === 'string') {
+        const upperTarget = targetOuOrGroup.toUpperCase();
+        if (upperTarget.includes("#ERROR!") || upperTarget.includes("#N/A") || upperTarget.includes("#VALUE!") || upperTarget.includes("#REF!") || upperTarget.includes("#DIV/0!") || upperTarget.includes("#NUM!") || upperTarget.includes("#NAME?") || upperTarget.includes("#NULL!")) {
+            Logger.log(`WARNING: Pushing problematic target ('${targetOuOrGroup}') for service '${category}' into additionalServicesData. This likely originated from the orgUnitMap.`);
+        }
+      } else if (targetOuOrGroup === null || targetOuOrGroup === undefined) {
+         Logger.log(`WARNING: Target for service '${category}' is null/undefined before pushing to additionalServicesData.`);
+      }
+
       additionalServicesData.push({
-        service: category,
-        orgUnit: orgUnitId, // Contains raw GroupID or OU Formula
-        status: settingValue
+        service: category,        // e.g., "Gmail", "Drive" (parsed from policy type)
+        orgUnit: targetOuOrGroup, // Resolved OU Path string (potentially "#ERROR!") or Group ID string
+        status: settingValue      // e.g., "ON", "OFF", or structured value
       });
+      Logger.log(`Added to additionalServicesData: Service='${category}', Target='${targetOuOrGroup}', Status='${settingValue}'`);
     }
 
-    // Return processed data including the raw GroupID or the OU formula string
-    return { category, policyName, orgUnitId, settingValue, policyQuery, type };
+    // 7. Return structured policy data
+    return {
+      category: category,
+      policyName: policyName,
+      orgUnitId: targetOuOrGroup, // This is the resolved OU Path or Group ID for the "Cloud Identity Policies" sheet
+      settingValue: settingValue,
+      policyQuery: policyQueryString,
+      type: type
+    };
 
   } catch (error) {
-    Logger.log(`Error in processPolicy for policy ${policy ? policy.name : 'undefined'}: ${error.message} - Stack: ${error.stack}`);
-    return null;
+    Logger.log(`ERROR in processPolicy for rawSettingType '${rawSettingType}': ${error.message} - Policy (first 500 chars): ${JSON.stringify(policy).substring(0,500)}... - Stack: ${error.stack}`);
+    return null; // Return null if processing fails catastrophically
   }
 }
 
@@ -351,10 +564,10 @@ function getOrgUnitValue(orgUnit) {
 }
 
 
+
 /**
  * Applies VLOOKUP formula ONLY to cells containing raw Group IDs
- * in the Org Unit ID column (Col 3). Ignores existing formulas and specific strings.
- * THIS MATCHES THE ORIGINAL SCRIPT'S INTENT.
+ * in the "OU Path / Group ID" column (Col 3). Ignores resolved OU names and specific strings.
  * @param {Sheet} sheet The "Cloud Identity Policies" sheet object.
  */
 function applyVlookupToOrgUnitId(sheet) {
@@ -368,41 +581,60 @@ function applyVlookupToOrgUnitId(sheet) {
   }
 
   const lastPolicyRow = sheet.getLastRow();
-  if (lastPolicyRow < 2) {
-      Logger.log("No data rows in Policies sheet to apply Group VLOOKUP.");
-      return;
+  if (lastPolicyRow < 2) { // Need at least one data row
+    Logger.log("No data rows in Policies sheet to apply Group VLOOKUP.");
+    return;
   }
 
-  Logger.log(`Applying Group VLOOKUPs where needed in ${sheet.getName()}...`);
+  Logger.log(`Applying Group VLOOKUPs (if needed) to Col C in ${sheet.getName()} from row 2 to ${lastPolicyRow}...`);
   let groupLookupsApplied = 0;
-  const orgUnitIdCol = 3; // Column C
+  const targetIdCol = 3; // Column C holds "OU Path / Group ID"
 
-  // Loop through rows individually (as per original script)
-  for (let i = 2; i <= lastPolicyRow; i++) {
-    const orgUnitIdCell = sheet.getRange(i, orgUnitIdCol);
-    let currentCellValue = orgUnitIdCell.getValue();
+  // Iterate through each relevant cell in the target column
+  for (let r = 2; r <= lastPolicyRow; r++) {
+    const cell = sheet.getRange(r, targetIdCol);
+    // Use getDisplayValue() to get exactly what's visible, helps with non-string types or formatting
+    const currentCellValue = cell.getDisplayValue();
+    const currentCellFormula = cell.getFormula();
 
-    // --- Apply Group VLOOKUP only if it's a raw Group ID string ---
-    // Check if it's a string, not SYSTEM, not an error, AND not already a formula
-    if (typeof currentCellValue === 'string' &&
-        currentCellValue !== "SYSTEM" &&
-        !currentCellValue.includes(" Lookup Failed)") && // Avoid re-applying on failures
-        !currentCellValue.includes(" not found in query") && // Avoid applying on errors
-        !currentCellValue.startsWith('=')) // Ignore existing formulas (OU lookups)
-    {
-        // Assume it's a raw Group ID if it doesn't start with '=' and isn't SYSTEM/Error
-        const groupIdToLookup = currentCellValue;
-        // Ensure GroupID named range has group name in column 3
-        const formula = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup}")`; // Original fallback logic
-        try {
-           orgUnitIdCell.setFormula(formula);
-           groupLookupsApplied++;
-        } catch (e) {
-           Logger.log(`Error setting Group VLOOKUP formula in cell C${i}: ${e.message}`);
-           orgUnitIdCell.setValue(`${groupIdToLookup} (Formula Error)`);
+    // Logger.log(`Row ${r}, Col C - DisplayValue: '${currentCellValue}', Formula: '${currentCellFormula}'`); // UNCOMMENT FOR INTENSE DEBUG
+
+    let isLikelyGroupID = false;
+    if (typeof currentCellValue === 'string' && currentCellValue.trim() !== "") {
+      const trimmedValue = currentCellValue.trim();
+      if (
+          trimmedValue !== "SYSTEM" &&
+          !trimmedValue.startsWith('/') &&           // <<<< CRUCIAL: Skips OU Paths
+          !trimmedValue.includes("(Group Not Found)") && // Avoid re-processing failed lookups
+          !trimmedValue.includes("(OU Lookup Failed)") && // Avoid processing previous OU lookup failures
+          !trimmedValue.includes("not found in query") && // Avoid processing error strings
+          !trimmedValue.startsWith('id:') &&        // Skips raw OU IDs that weren't mapped
+          currentCellFormula === ""                 // Only apply if cell doesn't already have a formula
+                                                    // This also means if it's a path (value), formula is "", so other conditions must prevent it
+      ) {
+        // Further check: Does it look like an email? (Simple check for '@')
+        // Or is it a numerical-like ID that Groups might use but OU paths don't?
+        // This depends on your group ID format. If group IDs are emails, this helps.
+        if (trimmedValue.includes('@') || /^[a-zA-Z0-9]+$/.test(trimmedValue)) { // Looks like an email or an alphanumeric ID
+             isLikelyGroupID = true;
         }
+      }
     }
-    // --- End Group VLOOKUP check ---
+
+    if (isLikelyGroupID) {
+      const groupIdToLookup = currentCellValue.trim();
+      Logger.log(`Row ${r}: Applying Group VLOOKUP for potential Group ID '${groupIdToLookup}'.`);
+      const formula = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup} (Group Not Found)")`;
+      try {
+        cell.setFormula(formula);
+        groupLookupsApplied++;
+      } catch (e) {
+        Logger.log(`Error setting Group VLOOKUP for '${groupIdToLookup}' in cell C${r}: ${e.message}`);
+        cell.setValue(`${groupIdToLookup} (Formula Error)`); // Fallback on error
+      }
+    } else {
+      // Logger.log(`Row ${r}: Skipping Group VLOOKUP for Col C value '${currentCellValue}'.`); // UNCOMMENT FOR INTENSE DEBUG
+    }
   }
   Logger.log(`Finished applying Group VLOOKUPs to Policies. Formulas applied: ${groupLookupsApplied}`);
 }
@@ -418,7 +650,7 @@ function applyVlookupToOrgUnitId(sheet) {
 function applyVlookupToAdditionalServices(sheet, numRows) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const groupSheet = ss.getSheetByName('Group Settings');
-  const groupIDRange = ss.getRangeByName('GroupID');
+  const groupIDRange = ss.getRangeByName('GroupID'); // Assumes GroupID: Col A=ID, Col C=Name
 
   if (!groupSheet || !groupIDRange) {
     Logger.log("WARNING: 'Group Settings' sheet or 'GroupID' named range not found. Group VLOOKUPs skipped in Additional Services.");
@@ -432,35 +664,42 @@ function applyVlookupToAdditionalServices(sheet, numRows) {
 
   Logger.log(`Applying Group VLOOKUPs where needed in ${sheet.getName()}...`);
   let groupLookupsApplied = 0;
-  const orgUnitIdCol = 2; // Column B
+  const orgUnitIdCol = 2; // Column B: "OU / Group"
 
-  // Loop through rows individually
-  for (let i = 2; i <= numRows + 1; i++) { // +1 because numRows is count, loop needs to go to last row index
-    const orgUnitIdCell = sheet.getRange(i, orgUnitIdCol);
-    let currentCellValue = orgUnitIdCell.getValue();
+  // Get all values in the column at once
+  const range = sheet.getRange(2, orgUnitIdCol, numRows, 1);
+  const values = range.getValues();
+  const formulas = range.getFormulasR1C1(); // Get existing formulas to preserve them
 
-    // --- Apply Group VLOOKUP only if it's a raw Group ID string ---
+  for (let i = 0; i < values.length; i++) {
+    let currentCellValue = values[i][0];
+
+    // Check if it's a string, not "SYSTEM", not an OU path (doesn't start with "/"),
+    // not an error, AND not already a formula.
     if (typeof currentCellValue === 'string' &&
         currentCellValue !== "SYSTEM" &&
+        !currentCellValue.startsWith('/') && // OU Paths/Names will start with /
         !currentCellValue.includes(" Lookup Failed)") &&
         !currentCellValue.includes(" not found in query") &&
-        !currentCellValue.startsWith('='))
+        !currentCellValue.startsWith('id:') && // Ignore raw OU IDs that weren't mapped
+        !currentCellValue.startsWith('=')) // Check if the *value* starts with =, not just if getFormula is non-empty
     {
         const groupIdToLookup = currentCellValue;
-        const formula = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup}")`; // Original fallback logic
-        try {
-           orgUnitIdCell.setFormula(formula);
-           groupLookupsApplied++;
-        } catch (e) {
-           Logger.log(`Error setting Group VLOOKUP formula in cell B${i}: ${e.message}`);
-           orgUnitIdCell.setValue(`${groupIdToLookup} (Formula Error)`);
-        }
+        // Ensure GroupID named range has group name in column 3
+        formulas[i][0] = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup} (Group Not Found)")`;
+        groupLookupsApplied++;
     }
-    // --- End Group VLOOKUP check ---
+    // If it doesn't meet criteria, formulas[i][0] will retain its original formula or be empty if it was a value.
+    // This needs to be handled carefully if mixing setValues and setFormulas.
+    // Better to rebuild the formulas array for setFormulas.
   }
-  Logger.log(`Finished applying Group VLOOKUPs to Additional Services. Formulas applied: ${groupLookupsApplied}`);
-}
 
+  if (groupLookupsApplied > 0) {
+      range.setFormulasR1C1(formulas); // Set all formulas (new and existing)
+  }
+
+  Logger.log(`Finished applying Group VLOOKUPs to Additional Services. Formulas potentially modified/set: ${groupLookupsApplied}`);
+}
 
 function createOrUpdateNamedRange(sheet, rangeName, startRow, startColumn, endRow, endColumn) {
    if (!sheet || typeof sheet.getRange !== 'function' || endRow < startRow || endColumn < startColumn) {
