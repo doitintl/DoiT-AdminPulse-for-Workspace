@@ -17,7 +17,8 @@
     "https://www.googleapis.com/auth/admin.directory.device.mobile.readonly",
     "https://www.googleapis.com/auth/admin.directory.customer.readonly",
     "https://www.googleapis.com/auth/admin.directory.orgunit.readonly",
-    "https://www.googleapis.com/auth/cloud-identity.policies.readonly"
+    "https://www.googleapis.com/auth/cloud-identity.policies.readonly",
+    "https://www.googleapis.com/auth/script.scriptapp"
   ],
   "urlFetchWhitelist": [
     "https://dns.google/resolve?name=*",
