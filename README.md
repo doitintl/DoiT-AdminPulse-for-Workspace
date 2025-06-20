@@ -31,7 +31,7 @@ This tool requires super admin access to your Google Workspace™ or Cloud Ident
 2. Open a new Google Sheet and use **Extensions > DoiT AdminPulse for Workspace > Setup or Refresh Sheet** populate the checklist.
 3. Use the Cloud Identity Policies API by navigating to **Extensions > DoiT AdminPulse for Workspace > Inventory Workspace Settings > Check all policies**
 4. Use the provided documentation links for guidance and take notes as needed while reviewing the enviorment.
-5. Optionally, run the inventory scripts by navigating to **Extensions > DoiT AdminPulse for Workspace > Run all scripts** to inventory users, group memberships, and more.
+5. Optionally, run the inventory scripts by navigating to **Extensions > DoiT AdminPulse for Workspace > Run Reports** to inventory users, group memberships, and more.
 6. The completed workbook will be helpful to identify areas of Google Workspace™ where your organization may be able to improve security.
 ![Fetch Info menu button\](image.png)](<Fetch Info.png>)
 

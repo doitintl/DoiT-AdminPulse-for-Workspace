@@ -1,610 +1,475 @@
-let additionalServicesData = [];
+// ---------------------------------------------
+// Part 1: Configuration & Main Controller
+// ---------------------------------------------
 
-// =============================================
-// Sheet Setup & Finalization Functions
-// =============================================
-
-function setupSheetHeader(sheet, header) {
-  const filter = sheet.getFilter();
-  if (filter) {
-    filter.remove();
-  }
-  // Ensure header row exists before trying to clear/get range
-  if (sheet.getMaxRows() < 1) {
-      sheet.insertRowBefore(1);
-  }
-  sheet.getRange(1, 1, 1, header.length).clearContent();
-
-  const headerRange = sheet.getRange(1, 1, 1, header.length);
-  headerRange.setValues([header]);
-  headerRange.setFontWeight("bold")
-    .setFontColor("#ffffff")
-    .setFontFamily("Montserrat")
-    .setBackground("#fc3165");
-
-  // Ensure frozen row setting doesn't exceed max rows
-  if (sheet.getMaxRows() >= 1) {
-      sheet.setFrozenRows(1);
-  } else {
-       Logger.log(`Skipping setFrozenRows for ${sheet.getName()} as it has 0 rows.`);
-  }
+const SCRIPT_NAME = "Workspace Policy Check";
+const TRIGGER_FUNCTION_NAME = "continuePolicyFetchAndProcess";
+const MAX_RUNTIME_MINUTES = 28;
 
 
-  // Re-create filter, check if sheet has content rows first
-  if (sheet.getLastRow() > 0) {
-     try {
-        // Apply filter to the range that includes potential data
-        sheet.getRange(1, 1, sheet.getLastRow(), header.length).createFilter();
-     } catch (e) {
-        // Handle cases where filter might already exist somehow or other issues
-        Logger.log(`Could not create filter on ${sheet.getName()}: ${e.message}`);
-     }
-  }
-  Logger.log(`Header set for sheet: ${sheet.getName()}`);
-}
+/**
+ * Main function. Initializes, runs dependencies, and starts the policy fetch.
+ */
+function runFullPolicyCheck() {
+  const startTime = new Date();
+  const ui = SpreadsheetApp.getUi();
+  // --- FIX: Declare 'ss' at the top of the function ---
+  const ss = SpreadsheetApp.getActiveSpreadsheet(); 
 
-function finalizeSheet(sheet, numColumns) {
+  Logger.log(`============================================================`);
+  Logger.log(`▶️ START: Running '${SCRIPT_NAME}' at ${startTime.toLocaleString()}`);
+  Logger.log(`============================================================`);
+
+  deleteTriggers();
+  PropertiesService.getScriptProperties().deleteAllProperties();
+  Logger.log("Cleaned up old triggers and properties for a fresh run.");
+
+  // --- Step 1: Run External Dependency Scripts ---
+  // This script assumes that 'getGroupsSettings' and 'getOrgUnits' functions
+  // exist within this script project and will run correctly.
   try {
-    // Check if sheet object is valid
-    if (!sheet || typeof sheet.getName !== 'function') {
-        Logger.log("Error finalizing sheet: Invalid sheet object provided.");
-        return;
-    }
-    const sheetName = sheet.getName();
-    Logger.log(`Finalizing sheet: ${sheetName}...`);
+    Logger.log("--- Calling Dependency: getGroupsSettings() ---");
+    // Now this line will work correctly
+    ss.toast('Updating Group data...', SCRIPT_NAME, -1); 
+    SpreadsheetApp.flush();
+    getGroupsSettings();
 
-    const lastRow = sheet.getLastRow();
-    const lastCol = sheet.getLastColumn();
-    const maxRows = sheet.getMaxRows();
+    Logger.log("--- Calling Dependency: getOrgUnits() ---");
+    // This line will also work correctly
+    ss.toast('Updating OU data...', SCRIPT_NAME, -1);
+    SpreadsheetApp.flush();
+    getOrgUnits();
 
-    // Auto-resize columns used
-    if (lastCol > 0 && numColumns > 0 && lastRow > 0) { // Only resize if there's content
-        try {
-           sheet.autoResizeColumns(1, Math.min(lastCol, numColumns));
-        } catch (e) {
-            Logger.log(` Minor error during autoResizeColumns for ${sheetName}: ${e.message}`);
-        }
-    }
-
-    // Delete unused columns
-    if (lastCol > numColumns) {
-      sheet.deleteColumns(numColumns + 1, lastCol - numColumns);
-      Logger.log(`Deleted ${lastCol - numColumns} excess columns from ${sheetName}`);
-    }
-
-    // Delete unused rows
-    if (lastRow >= 0 && lastRow < maxRows) { // Check lastRow >= 0
-      const rowsToDelete = maxRows - Math.max(lastRow, 1); // Ensure at least 1 row remains if empty
-      if (rowsToDelete > 0) {
-         // Need to handle case where lastRow is 0 (only header)
-         const startDeleteRow = Math.max(lastRow + 1, 2); // Start deleting from row 2 if sheet was empty
-         if (startDeleteRow <= maxRows) {
-             sheet.deleteRows(startDeleteRow, rowsToDelete);
-             Logger.log(`Deleted ${rowsToDelete} excess rows from ${sheetName}`);
-         }
-      }
-    }
-
-    // Sort if data exists (rows > 1)
-    if (lastRow > 1) {
-      const sortLastCol = Math.min(sheet.getLastColumn(), numColumns); // Use current last column after deletes
-       if (sortLastCol > 0) {
-         try {
-            sheet.getRange(2, 1, lastRow - 1, sortLastCol).sort({ column: 1, ascending: true });
-            Logger.log(`Sorted data in ${sheetName}`);
-         } catch (e) {
-            Logger.log(`Error sorting data in ${sheetName}: ${e.message}`);
-         }
-       }
-    }
-     Logger.log(`Finalized sheet: ${sheetName}`);
   } catch (e) {
-      Logger.log(`Error finalizing sheet ${sheet ? sheet.getName() : 'undefined'}: ${e.message} - Stack: ${e.stack}`);
+    const errorMessage = `A dependency script ('getGroupsSettings' or 'getOrgUnits') failed to run. Error: ${e.message}. The script cannot continue.`;
+    Logger.log(errorMessage + `\nStack: ${e.stack}`);
+    // You can also use the 'ss' variable here for the error toast
+    ss.toast(e.message, '❌ Dependency Error', 30);
+    ui.alert(errorMessage);
+    return;
   }
+  
+  // --- Step 2: Validate the output of the dependency scripts ---
+  // The 'ss' variable is already defined, so this check works perfectly.
+  if (!ss.getRangeByName('GroupID') || !ss.getRangeByName('OrgID2Path')) {
+      const errorMessage = `VALIDATION FAILED: Required named ranges ('GroupID', 'OrgID2Path') were not found after dependency scripts ran. Please ensure they create these ranges correctly. The script cannot continue.`;
+      Logger.log(errorMessage);
+      ss.toast(errorMessage, '❌ Validation Error', 30);
+      ui.alert(errorMessage);
+      return;
+  }
+  
+  Logger.log("✅ All dependency scripts ran and outputs were validated.");
+  ss.toast('Dependencies validated. Starting policy fetch...', SCRIPT_NAME, 10);
+  SpreadsheetApp.flush();
+
+  // --- Step 3: Start the main policy fetching process ---
+  PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
+  continuePolicyFetchAndProcess();
 }
 
 
-// =============================================
-// Policy Fetching & Processing
-// =============================================
+// ---------------------------------------------
+// Part 2: Timeout, Continuation, and Processing Logic
+// ---------------------------------------------
 
-function fetchAndListPolicies() {
-  // --- Call Dependency Functions ---
-  // Assumes getGroupsSettings() and getOrgUnits() exist elsewhere and
-  // successfully create the required Named Ranges before this point.
+function isTimeUp(startTime) {
+  const maxRuntimeSeconds = MAX_RUNTIME_MINUTES * 60;
+  return (new Date().getTime() - Number(startTime)) / 1000 >= maxRuntimeSeconds;
+}
+
+function deleteTriggers() {
   try {
-      getGroupsSettings(); // Expected to create/update 'GroupID' named range
-      getOrgUnits();       // Expected to create/update 'OrgID2Path', 'Org2ParentPath' named ranges
-      Logger.log("Dependency functions getGroupsSettings() and getOrgUnits() executed.");
-  } catch(e) {
-       Logger.log(`CRITICAL ERROR: Failed running getGroupsSettings or getOrgUnits: ${e.message}. VLOOKUPs will fail.`);
-       // Optionally alert user if running interactively
-       // SpreadsheetApp.getUi().alert(`Error running setup functions: ${e.message}. Script cannot continue reliably.`);
-       return; // Stop if dependencies fail
-  }
-  // --- End Dependency Calls ---
+    ScriptApp.getProjectTriggers().forEach(trigger => {
+      if (trigger.getHandlerFunction() === TRIGGER_FUNCTION_NAME) {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+  } catch (e) { /* Ignore */ }
+}
+
+function continuePolicyFetchAndProcess() {
+  // --- FIX #1: Define 'ss' within this function's scope ---
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const properties = scriptProperties.getProperties();
+
+  const startTime = Number(properties.startTime || new Date().getTime());
+  let nextPageToken = properties.nextPageToken || "";
+  let policyMap = properties.policyMap ? JSON.parse(properties.policyMap) : {};
+  let additionalServicesData = properties.additionalServicesData ? JSON.parse(properties.additionalServicesData) : [];
+  
+  // --- FIX #2: Define 'initialPolicyCount' before it is used ---
+  const initialPolicyCount = Object.keys(policyMap).length;
+  Logger.log(`Resuming process. Policies collected so far: ${initialPolicyCount}.`);
+  
+  // Now this toast will work correctly
+  ss.toast(`Fetching policies... (${initialPolicyCount} collected so far)`, SCRIPT_NAME, 20);
+  SpreadsheetApp.flush();
 
   const urlBase = "https://cloudidentity.googleapis.com/v1beta1/policies";
   const pageSize = 100;
-  let nextPageToken = "";
   let hasNextPage = true;
-
   const params = {
-    headers: {
-      Authorization: `Bearer ${ScriptApp.getOAuthToken()}`,
-    },
+    headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
     muteHttpExceptions: true,
     method: 'get'
   };
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheetName = "Cloud Identity Policies";
-  let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    Logger.log(`Sheet '${sheetName}' created.`);
-  } else {
-    // Clear content below header, preserve header formatting
-    if (sheet.getLastRow() > 1) {
-       sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
-    }
-    Logger.log(`Cleared contents (below header) of sheet '${sheetName}'.`);
-  }
-
-  const header = ["Category", "Policy Name", "Org Unit ID", "Setting Value", "Policy Query"];
-  setupSheetHeader(sheet, header); // Pass the header array
-
-  const policyMap = {};
-  additionalServicesData = [];
-
-  Logger.log("Starting policy fetch loop...");
-  let totalFetched = 0;
-  let pageCount = 0;
-
-  while (hasNextPage) {
-    pageCount++;
-    let url = `${urlBase}?pageSize=${pageSize}`;
-    if (nextPageToken) {
-      url += `&pageToken=${nextPageToken}`;
+  Logger.log("Starting policy fetch batch...");
+  do {
+    if (isTimeUp(startTime)) {
+      Logger.log("Approaching time limit. Pausing execution.");
+      // This toast will also work now
+      ss.toast('Pausing to avoid timeout. Will resume in 1 minute.', SCRIPT_NAME, 60);      
+      hasNextPage = true;
+      break;
     }
 
-    Logger.log(`Fetching Page ${pageCount}.`);
+    let url = `${urlBase}?pageSize=${pageSize}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
 
     try {
       const response = UrlFetchApp.fetch(url, params);
       const responseCode = response.getResponseCode();
-      const responseBody = response.getContentText();
-
-      if (responseCode !== 200) {
-        let errorMessage = responseBody;
-        try {
-           const errorJson = JSON.parse(responseBody);
-           errorMessage = errorJson.error ? JSON.stringify(errorJson.error) : responseBody;
-        } catch (parseError) { /* Ignore */ }
-        throw new Error(`HTTP error ${responseCode}: ${errorMessage}`);
-      }
-
-      const jsonResponse = JSON.parse(responseBody);
+      if (responseCode !== 200) throw new Error(`HTTP ${responseCode}: ${response.getContentText()}`);
+      
+      const jsonResponse = JSON.parse(response.getContentText());
       const policies = jsonResponse.policies || [];
       nextPageToken = jsonResponse.nextPageToken || "";
-      totalFetched += policies.length;
-      Logger.log(`Fetched ${policies.length} policies (Page ${pageCount}). Total: ${totalFetched}. NextPage: ${!!nextPageToken}`);
+      Logger.log(`Fetched ${policies.length} policies. NextPage: ${!!nextPageToken}`);
 
       policies.forEach(policy => {
-        const policyData = processPolicy(policy); // Returns object with raw GroupID or OU formula string in orgUnitId field
+        const policyData = processPolicy(policy, additionalServicesData); 
         if (policyData) {
-          // Key uses the raw ID or formula string - this is ok for map uniqueness
           const policyKey = `${policyData.category}-${policyData.policyName}-${policyData.orgUnitId}`;
           if (!policyMap[policyKey] || (policyData.type === 'ADMIN' && policyMap[policyKey].type !== 'ADMIN')) {
             policyMap[policyKey] = policyData;
           }
         }
       });
+      
+      // And this toast will work
+      ss.toast(`Fetching policies... (${Object.keys(policyMap).length} collected)`, SCRIPT_NAME, 20);
+      SpreadsheetApp.flush(); // Flush to see updates during the loop
 
       hasNextPage = !!nextPageToken;
-       Utilities.sleep(100);
+      if (hasNextPage) Utilities.sleep(100);
 
     } catch (error) {
-      Logger.log(`ERROR during policy fetch (Page ${pageCount}): ${error.message}. Stopping pagination.`);
+      Logger.log(`ERROR during policy fetch: ${error.message}. Stopping pagination.`);
+      ss.toast(`Error during fetch: ${error.message}`, '❌ Network Error', 30); // Also needs 'ss'
       hasNextPage = false;
     }
-  }
-  Logger.log("Policy fetch loop finished.");
+  } while (hasNextPage);
 
-  // Prepare rows for the sheet. Org Unit ID column contains raw IDs or formula strings.
-  const rows = Object.values(policyMap).map(policyData => [
-    policyData.category,
-    policyData.policyName,
-    policyData.orgUnitId,
-    policyData.settingValue,
-    policyData.policyQuery
-  ]);
-
-  if (rows.length > 0) {
-    Logger.log(`Writing ${rows.length} rows to the sheet.`);
-    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows); // Write data including formulas/IDs
-
-    // Apply VLOOKUP to ONLY the raw Group IDs AFTER writing
-    applyVlookupToOrgUnitId(sheet);
-
-    sheet.hideColumns(5); // Hide Policy Query column
-    Logger.log("Applied Group VLOOKUPs (if any) and hid Policy Query column.");
-
+  if (hasNextPage) {
+    Logger.log("Saving state and setting trigger to continue...");
+    scriptProperties.setProperties({
+        'nextPageToken': nextPageToken,
+        'policyMap': JSON.stringify(policyMap),
+        'additionalServicesData': JSON.stringify(additionalServicesData),
+        'startTime': startTime
+    });
+    deleteTriggers(); 
+    ScriptApp.newTrigger(TRIGGER_FUNCTION_NAME).timeBased().after(60 * 1000).create();
+    Logger.log(`⏸️ PAUSING. Trigger set to continue.`);
   } else {
-    Logger.log("No policy data to write to the sheet.");
+    Logger.log("✅ All policies fetched. Finalizing sheets.");
+    finalizeAllSheets(policyMap, additionalServicesData, startTime);
   }
-
-  // Finalize the sheet (resize, delete extra rows/cols, sort)
-  finalizeSheet(sheet, 4); // Keep first 4 columns visible
-
-  Logger.log("Cloud Identity Policies sheet processing completed.");
-
-  // Update or create the "Policies" named range
-  const lastPolicyRow = sheet.getLastRow();
-   if (lastPolicyRow >= 1) { // Needs at least header row
-       createOrUpdateNamedRange(sheet, "Policies", 1, 1, lastPolicyRow, 4); // Use 4 columns
-   } else {
-       Logger.log("Skipping 'Policies' named range creation as sheet is empty.");
-   }
-
-
-  // Create dependent sheets
-  createAdditionalServicesSheet();
-  createWorkspaceSecurityChecklistSheet(); // This will run last
 }
 
-
-function processPolicy(policy) {
+function processPolicy(policy, servicesDataArray) {
   try {
-    let policyName = "";
-    let orgUnitId = ""; // Will hold raw Group ID, "SYSTEM", error string, or OU VLOOKUP formula string
-    let settingValue = "";
-    let policyQuery = "";
-    let category = "";
-    let type = "";
-
-    // Category and Policy Name Extraction
+    let policyName = "", orgUnitId = "", settingValue = "", policyQuery = "", category = "", type = "";
     if (policy.setting && policy.setting.type) {
-      const settingType = policy.setting.type;
-      const parts = settingType.split('/');
+      const parts = policy.setting.type.split('/');
       if (parts.length > 1) {
         const categoryPart = parts[1];
         const dotIndex = categoryPart.indexOf('.');
         category = (dotIndex !== -1) ? categoryPart.substring(0, dotIndex) : categoryPart;
         policyName = (dotIndex !== -1) ? categoryPart.substring(dotIndex + 1) : categoryPart;
         policyName = policyName.replace(/_/g, " ");
-      } else {
-        category = "N/A"; policyName = settingType;
-      }
-    } else {
-      category = "N/A"; policyName = "Unknown";
-    }
-
-    // Determine Target (Org Unit or Group) - Using Original Logic Pattern
+      } else { category = "N/A"; policyName = policy.setting.type; }
+    } else { category = "N/A"; policyName = "Unknown"; }
+    
     if (policy.policyQuery && policy.policyQuery.query && policy.policyQuery.query.includes("groupId(")) {
-      const groupIdRegex = /groupId\('([^']*)'\)/;
-      const groupIdMatch = policy.policyQuery.query.match(groupIdRegex);
-      orgUnitId = (groupIdMatch && groupIdMatch[1]) ? groupIdMatch[1] : "Group ID not found in query"; // RAW Group ID
+      const groupIdMatch = policy.policyQuery.query.match(/groupId\('([^']*)'\)/);
+      orgUnitId = (groupIdMatch && groupIdMatch[1]) ? groupIdMatch[1] : "Group ID not found";
     } else if (policy.policyQuery && policy.policyQuery.orgUnit) {
-      orgUnitId = getOrgUnitValue(policy.policyQuery.orgUnit); // Get OU VLOOKUP FORMULA string
-    } else {
-      orgUnitId = "SYSTEM";
-    }
-
-    // Setting Value Processing
+      orgUnitId = getOrgUnitValue(policy.policyQuery.orgUnit); 
+    } else { orgUnitId = "SYSTEM"; }
+    
     if (policy.setting && policy.setting.hasOwnProperty('value')) {
-      if (typeof policy.setting.value === 'object' && policy.setting.value !== null) {
-        settingValue = formatObject(policy.setting.value);
-      } else {
-        settingValue = String(policy.setting.value);
-      }
-    } else {
-      settingValue = "No setting value";
-    }
-
-    // Store Query and Type
+      settingValue = (typeof policy.setting.value === 'object' && policy.setting.value !== null)
+        ? formatObject(policy.setting.value) : String(policy.setting.value);
+    } else { settingValue = "No setting value"; }
+    
     policyQuery = policy.policyQuery ? JSON.stringify(policy.policyQuery) : "{}";
     type = policy.type || 'UNKNOWN';
-
-    // Populate Additional Services Data
+    
     if (policyName === "service status") {
-      additionalServicesData.push({
-        service: category,
-        orgUnit: orgUnitId, // Contains raw GroupID or OU Formula
-        status: settingValue
-      });
+      servicesDataArray.push({ service: category, orgUnit: orgUnitId, status: settingValue });
     }
-
-    // Return processed data including the raw GroupID or the OU formula string
     return { category, policyName, orgUnitId, settingValue, policyQuery, type };
-
-  } catch (error) {
-    Logger.log(`Error in processPolicy for policy ${policy ? policy.name : 'undefined'}: ${error.message} - Stack: ${error.stack}`);
+  } catch (e) {
+    Logger.log(`Error processing policy ${policy ? policy.name : 'undefined'}: ${e.message}`);
     return null;
   }
 }
 
-// =============================================
-// VLOOKUP and Data Formatting Functions
-// =============================================
 
-/**
- * Generates the VLOOKUP formula string to find the Org Unit Path.
- * Relies on named ranges OrgID2Path and Org2ParentPath.
- * THIS MATCHES THE ORIGINAL SCRIPT.
- * @param {string} orgUnit The raw org unit string (e.g., "orgUnits/123abc456")
- * @return {string} The formula string or "SYSTEM".
- */
+// ---------------------------------------------
+// Part 3: Finalization and Sheet Utilities
+// ---------------------------------------------
+
+function finalizeAllSheets(policyMap, additionalServicesData, startTime) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // Show toasts for each major step of the finalization process
+    ss.toast('Finalizing... Writing policies to sheet.', SCRIPT_NAME, -1); // Use -1 to keep visible until the next toast
+    SpreadsheetApp.flush();
+
+    const policySheetName = "Cloud Identity Policies";
+    let policySheet = ss.getSheetByName(policySheetName);
+    if (!policySheet) policySheet = ss.insertSheet(policySheetName);
+    else if (policySheet.getLastRow() > 1) policySheet.getRange(2, 1, policySheet.getLastRow() - 1, policySheet.getMaxColumns()).clearContent();
+    
+    const policyHeader = ["Category", "Policy Name", "Org Unit ID", "Setting Value", "Policy Query"];
+    setupSheetHeader(policySheet, policyHeader); 
+    
+    const policyRows = Object.values(policyMap).map(p => [p.category, p.policyName, p.orgUnitId, p.settingValue, p.policyQuery]);
+    if (policyRows.length > 0) {
+      policySheet.getRange(2, 1, policyRows.length, policyRows[0].length).setValues(policyRows);
+      applyVlookupToOrgUnitId(policySheet);
+      policySheet.hideColumns(5);
+    }
+    
+    finalizeSheet(policySheet, 4);
+    
+    if (policySheet.getLastRow() >= 1) {
+       createOrUpdateNamedRange(policySheet, "Policies", 1, 1, policySheet.getLastRow(), 4);
+    }
+
+    ss.toast('Creating Additional Services sheet...', SCRIPT_NAME, 15);
+    SpreadsheetApp.flush();
+    createAdditionalServicesSheet(additionalServicesData);
+
+    ss.toast('Creating Workspace Security Checklist...', SCRIPT_NAME, 20);
+    SpreadsheetApp.flush();
+    createWorkspaceSecurityChecklistSheet();
+
+    // Clean up properties and triggers
+    deleteTriggers();
+    PropertiesService.getScriptProperties().deleteAllProperties();
+
+    // --- MODIFIED SECTION ---
+    // Calculate final duration and create the success message
+    const endTime = new Date();
+    const totalDuration = (endTime.getTime() - startTime) / 1000 / 60;
+    const successMessage = `'${SCRIPT_NAME}' completed successfully in ${totalDuration.toFixed(2)} minutes.`;
+    
+    // Log the final status and end time for debugging purposes
+    Logger.log(`============================================================`);
+    Logger.log(`✅ FINISH: Script completed at ${endTime.toLocaleString()}`);
+    Logger.log(successMessage);
+    Logger.log(`============================================================`);
+    
+    // Show a final success toast for 10 seconds instead of a blocking alert
+    ss.toast(successMessage, '✅ Complete!', 10);
+}
+
+function setupSheetHeader(sheet, header) {
+  if (sheet.getFilter()) sheet.getFilter().remove();
+  if (sheet.getMaxRows() < 1) sheet.insertRowBefore(1);
+  sheet.getRange(1, 1, 1, header.length).clearContent();
+  const headerRange = sheet.getRange(1, 1, 1, header.length);
+  headerRange.setValues([header]).setFontWeight("bold").setFontColor("#ffffff").setFontFamily("Montserrat").setBackground("#fc3165");
+  if (sheet.getMaxRows() >= 1) sheet.setFrozenRows(1);
+  if (sheet.getLastRow() > 1) {
+    try { sheet.getRange(1, 1, sheet.getLastRow(), header.length).createFilter(); } catch (e) { /* ignore */ }
+  }
+}
+
+function finalizeSheet(sheet, numColumns) {
+  try {
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const maxRows = sheet.getMaxRows();
+    if (lastRow > 1 && lastCol > 0) sheet.autoResizeColumns(1, Math.min(lastCol, numColumns));
+    if (lastCol > numColumns) sheet.deleteColumns(numColumns + 1, lastCol - numColumns);
+    const rowsToDelete = maxRows - Math.max(lastRow, 1);
+    if (rowsToDelete > 0) {
+      const startDeleteRow = Math.max(lastRow + 1, 2);
+      if (startDeleteRow <= maxRows) sheet.deleteRows(startDeleteRow, rowsToDelete);
+    }
+    if (lastRow > 1) {
+      const sortLastCol = Math.min(sheet.getLastColumn(), numColumns);
+      if (sortLastCol > 0) sheet.getRange(2, 1, lastRow - 1, sortLastCol).sort({ column: 1, ascending: true });
+    }
+  } catch (e) {
+    Logger.log(`Error finalizing sheet ${sheet.getName()}: ${e.message}`);
+  }
+}
+
+function createOrUpdateNamedRange(sheet, rangeName, startRow, startColumn, endRow, endColumn) {
+   if (!sheet || endRow < startRow || endColumn < startColumn) return;
+   const ss = SpreadsheetApp.getActiveSpreadsheet();
+   const range = sheet.getRange(startRow, startColumn, (endRow - startRow + 1), (endColumn - startColumn + 1));
+   if (ss.getRangeByName(rangeName)) ss.removeNamedRange(rangeName);
+   ss.setNamedRange(rangeName, range);
+}
+
 function getOrgUnitValue(orgUnit) {
   if (orgUnit === "SYSTEM" || !orgUnit) {
      return "SYSTEM";
   }
+  
   const orgUnitID = orgUnit.replace("orgUnits/", "");
+  
+  // --- FIX FOR ROOT OU ---
+  // Get the saved root OU ID from the dependency script's run
+  const rootOuId = PropertiesService.getScriptProperties().getProperty('customerRootOuId');
+  // If the ID we are looking up is the root ID, just return "/"
+  if (rootOuId && orgUnitID === rootOuId.replace('id:', '')) {
+      return "/";
+  }
+
   if (!orgUnitID) {
       Logger.log(`Warning: Could not extract valid Org Unit ID from "${orgUnit}"`);
       return orgUnit;
   }
-  // Original formula logic using the named ranges
-  // Ensure your named ranges OrgID2Path (Col C=Path), Org2ParentPath (Col B=Path) are correct
+  
+  // This formula is for all non-root OUs
   return `=IFERROR(VLOOKUP("${orgUnitID}", OrgID2Path, 3, FALSE), IFERROR(VLOOKUP("${orgUnitID}", Org2ParentPath, 2, FALSE),"${orgUnitID} (OU Lookup Failed)"))`;
 }
 
-
 /**
- * Applies VLOOKUP formula ONLY to cells containing raw Group IDs
- * in the Org Unit ID column (Col 3). Ignores existing formulas and specific strings.
- * THIS MATCHES THE ORIGINAL SCRIPT'S INTENT.
- * @param {Sheet} sheet The "Cloud Identity Policies" sheet object.
+ * CORRECTED: Formats a JavaScript object into a clean, human-readable string.
+ * - For simple objects like {"key": "value"}, it produces "key: value".
+ * - For more complex objects, it produces an indented, multi-line string.
+ * - Handles nested objects and arrays.
  */
-function applyVlookupToOrgUnitId(sheet) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const groupSheet = ss.getSheetByName('Group Settings');
-  const groupIDRange = ss.getRangeByName('GroupID');
-
-  if (!groupSheet || !groupIDRange) {
-    Logger.log("WARNING: 'Group Settings' sheet or 'GroupID' named range not found. Group VLOOKUPs skipped in Policies sheet.");
-    return;
-  }
-
-  const lastPolicyRow = sheet.getLastRow();
-  if (lastPolicyRow < 2) {
-      Logger.log("No data rows in Policies sheet to apply Group VLOOKUP.");
-      return;
-  }
-
-  Logger.log(`Applying Group VLOOKUPs where needed in ${sheet.getName()}...`);
-  let groupLookupsApplied = 0;
-  const orgUnitIdCol = 3; // Column C
-
-  // Loop through rows individually (as per original script)
-  for (let i = 2; i <= lastPolicyRow; i++) {
-    const orgUnitIdCell = sheet.getRange(i, orgUnitIdCol);
-    let currentCellValue = orgUnitIdCell.getValue();
-
-    // --- Apply Group VLOOKUP only if it's a raw Group ID string ---
-    // Check if it's a string, not SYSTEM, not an error, AND not already a formula
-    if (typeof currentCellValue === 'string' &&
-        currentCellValue !== "SYSTEM" &&
-        !currentCellValue.includes(" Lookup Failed)") && // Avoid re-applying on failures
-        !currentCellValue.includes(" not found in query") && // Avoid applying on errors
-        !currentCellValue.startsWith('=')) // Ignore existing formulas (OU lookups)
-    {
-        // Assume it's a raw Group ID if it doesn't start with '=' and isn't SYSTEM/Error
-        const groupIdToLookup = currentCellValue;
-        // Ensure GroupID named range has group name in column 3
-        const formula = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup}")`; // Original fallback logic
-        try {
-           orgUnitIdCell.setFormula(formula);
-           groupLookupsApplied++;
-        } catch (e) {
-           Logger.log(`Error setting Group VLOOKUP formula in cell C${i}: ${e.message}`);
-           orgUnitIdCell.setValue(`${groupIdToLookup} (Formula Error)`);
-        }
-    }
-    // --- End Group VLOOKUP check ---
-  }
-  Logger.log(`Finished applying Group VLOOKUPs to Policies. Formulas applied: ${groupLookupsApplied}`);
-}
-
-
-/**
- * Applies VLOOKUP formula ONLY to cells containing raw Group IDs
- * in the OU/Group column (Col 2) of the Additional Services sheet.
- * THIS MATCHES THE ORIGINAL SCRIPT'S INTENT.
- * @param {Sheet} sheet The "Additional Services" sheet object.
- * @param {number} numRows The number of data rows (excluding header).
- */
-function applyVlookupToAdditionalServices(sheet, numRows) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const groupSheet = ss.getSheetByName('Group Settings');
-  const groupIDRange = ss.getRangeByName('GroupID');
-
-  if (!groupSheet || !groupIDRange) {
-    Logger.log("WARNING: 'Group Settings' sheet or 'GroupID' named range not found. Group VLOOKUPs skipped in Additional Services.");
-    return;
-  }
-
-  if (numRows < 1) {
-      Logger.log("No data rows in Additional Services sheet to apply VLOOKUP.");
-      return;
-  }
-
-  Logger.log(`Applying Group VLOOKUPs where needed in ${sheet.getName()}...`);
-  let groupLookupsApplied = 0;
-  const orgUnitIdCol = 2; // Column B
-
-  // Loop through rows individually
-  for (let i = 2; i <= numRows + 1; i++) { // +1 because numRows is count, loop needs to go to last row index
-    const orgUnitIdCell = sheet.getRange(i, orgUnitIdCol);
-    let currentCellValue = orgUnitIdCell.getValue();
-
-    // --- Apply Group VLOOKUP only if it's a raw Group ID string ---
-    if (typeof currentCellValue === 'string' &&
-        currentCellValue !== "SYSTEM" &&
-        !currentCellValue.includes(" Lookup Failed)") &&
-        !currentCellValue.includes(" not found in query") &&
-        !currentCellValue.startsWith('='))
-    {
-        const groupIdToLookup = currentCellValue;
-        const formula = `=IFERROR(VLOOKUP("${groupIdToLookup}", GroupID, 3, FALSE), "${groupIdToLookup}")`; // Original fallback logic
-        try {
-           orgUnitIdCell.setFormula(formula);
-           groupLookupsApplied++;
-        } catch (e) {
-           Logger.log(`Error setting Group VLOOKUP formula in cell B${i}: ${e.message}`);
-           orgUnitIdCell.setValue(`${groupIdToLookup} (Formula Error)`);
-        }
-    }
-    // --- End Group VLOOKUP check ---
-  }
-  Logger.log(`Finished applying Group VLOOKUPs to Additional Services. Formulas applied: ${groupLookupsApplied}`);
-}
-
-
-function createOrUpdateNamedRange(sheet, rangeName, startRow, startColumn, endRow, endColumn) {
-   if (!sheet || typeof sheet.getRange !== 'function' || endRow < startRow || endColumn < startColumn) {
-     Logger.log(`Skipping named range "${rangeName}" creation/update due to invalid sheet or dimensions (EndRow: ${endRow}, StartRow: ${startRow}).`);
-     return;
-  }
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const numRows = endRow - startRow + 1;
-    const numCols = endColumn - startColumn + 1;
-    const range = sheet.getRange(startRow, startColumn, numRows, numCols);
-
-    let namedRange = ss.getRangeByName(rangeName);
-    if (namedRange) {
-      ss.removeNamedRange(rangeName);
-    }
-    ss.setNamedRange(rangeName, range);
-    Logger.log(`Named range "${rangeName}" created/updated for range ${range.getA1Notation()} on sheet ${sheet.getName()}.`);
-
-  } catch (error) {
-    Logger.log(`Error creating or updating named range "${rangeName}": ${error.message}`);
-  }
-}
-
 function formatObject(obj, indent = 0) {
-  let formattedString = "";
-  const maxIndent = 5;
-
-  if (indent > maxIndent) {
-      return "  ".repeat(indent) + "... (Depth Exceeded)\n";
+  // If the object is not really an object, return it as a string.
+  if (obj === null || typeof obj !== 'object') {
+    return String(obj);
   }
 
+  // --- NEW: Special handling for 2-Step Verification "Not Enforced" state ---
+  // If the policy object is for 2SV and has the epoch timestamp, return "Not Enforced".
+  if (obj.hasOwnProperty('enforcedFrom') && obj.enforcedFrom === '1970-01-01T00:00:00Z') {
+    return "Not Enforced";
+  }
+
+  // Special case for simple {"key": "value"} objects
+  const keys = Object.keys(obj);
+  if (keys.length === 1 && typeof obj[keys[0]] !== 'object') {
+    return `${keys[0]}: ${obj[keys[0]]}`;
+  }
+
+  // Handle arrays
   if (Array.isArray(obj)) {
-       if (obj.length === 0) return "[]\n";
-       formattedString += "[\n";
-       obj.forEach((item, index) => {
-           formattedString += "  ".repeat(indent + 1) + `[${index}]: `;
-           if (typeof item === 'object' && item !== null) {
-               formattedString += "\n" + formatObject(item, indent + 2);
-           } else {
-               formattedString += item + "\n";
-           }
-       });
-       formattedString += "  ".repeat(indent) + "]\n";
-       return formattedString;
-   }
+    if (obj.length === 0) return "[]";
+    return obj.map(item => formatObject(item, indent + 1)).join(', ');
+  }
 
-  for (const key in obj) {
+  // Handle more complex objects with indentation
+  let formattedString = "";
+  let first = true;
+  for (const key of keys) {
     if (obj.hasOwnProperty(key)) {
-      const value = obj[key];
-      const indentation = "  ".repeat(indent);
-      formattedString += `${indentation}${key}: `;
-
-      if (typeof value === 'object' && value !== null) {
-        formattedString += '\n' + formatObject(value, indent + 1);
-      } else {
-        formattedString += value + '\n';
+      if (!first) {
+        formattedString += "\n" + "  ".repeat(indent);
       }
+      const value = obj[key];
+      formattedString += `${key}: `;
+      if (typeof value === 'object' && value !== null) {
+        // Add a newline and indent before printing the nested object
+        formattedString += "\n" + "  ".repeat(indent + 1) + formatObject(value, indent + 1);
+      } else {
+        formattedString += value;
+      }
+      first = false;
     }
   }
-  return formattedString.replace(/\n$/, ""); // Remove trailing newline
+  return formattedString;
 }
 
+function applyVlookupToOrgUnitId(sheet) {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getRangeByName('GroupID')) return;
+  const lastPolicyRow = sheet.getLastRow();
+  if (lastPolicyRow < 2) return;
+  const range = sheet.getRange(2, 3, lastPolicyRow - 1, 1);
+  const values = range.getValues();
+  const formulas = range.getFormulas();
+  for (let i = 0; i < values.length; i++) {
+    // Only apply formula if the cell is a raw ID (not a formula, not SYSTEM)
+    if (values[i][0] && !formulas[i][0] && values[i][0] !== 'SYSTEM') {
+      formulas[i][0] = `=IFERROR(VLOOKUP("${values[i][0]}", GroupID, 3, FALSE), "${values[i][0]}")`;
+    }
+  }
+  range.setFormulas(formulas);
+}
 
-// =============================================
-// Additional Services Sheet
-// =============================================
+function applyVlookupToAdditionalServices(sheet, numRows) {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getRangeByName('GroupID')) return;
+  if (numRows < 1) return;
+  const range = sheet.getRange(2, 2, numRows, 1);
+  const values = range.getValues();
+  const formulas = range.getFormulas();
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] && !formulas[i][0] && values[i][0] !== 'SYSTEM') {
+      formulas[i][0] = `=IFERROR(VLOOKUP("${values[i][0]}", GroupID, 3, FALSE), "${values[i][0]}")`;
+    }
+  }
+  range.setFormulas(formulas);
+}
 
-function createAdditionalServicesSheet() {
+function createAdditionalServicesSheet(additionalServicesData) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = "Additional Services";
   let sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-     Logger.log(`Sheet '${sheetName}' created.`);
-  } else {
-     // Clear content below header
-     if (sheet.getLastRow() > 1) {
-       sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
-     }
-     Logger.log(`Cleared contents (below header) of sheet '${sheetName}'.`);
-  }
-
+  if (!sheet) sheet = ss.insertSheet(sheetName);
+  else if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getMaxColumns()).clearContent();
   const header = ["Service", "OU / Group", "Status"];
   setupSheetHeader(sheet, header);
-
   if (additionalServicesData && additionalServicesData.length > 0) {
-    // Data now contains raw GroupIDs or OU Formula strings
     const rows = additionalServicesData.map(data => [data.service, data.orgUnit, data.status]);
-    Logger.log(`Writing ${rows.length} rows to ${sheetName}.`);
     sheet.getRange(2, 1, rows.length, header.length).setValues(rows);
-
-    // Apply VLOOKUP only to raw Group IDs AFTER writing
     applyVlookupToAdditionalServices(sheet, rows.length);
-  } else {
-      Logger.log(`No data found in additionalServicesData for sheet ${sheetName}.`);
   }
-
   finalizeSheet(sheet, header.length);
-  Logger.log(`${sheetName} sheet processing completed.`);
 }
 
-// =============================================
-// Workspace Security Checklist Sheet
-// =============================================
+
+// ---------------------------------------------
+// Part 4: Checklist Creation
+// ---------------------------------------------
 
 function createWorkspaceSecurityChecklistSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = "Workspace Security Checklist";
   let sheet = ss.getSheetByName(sheetName);
 
-  const policiesRange = ss.getRangeByName("Policies");
-  if (!policiesRange) {
-      Logger.log("ERROR: Named range 'Policies' not found. Cannot apply formulas to Workspace Security Checklist.");
-      // Optionally alert if interactive
-      // SpreadsheetApp.getUi().alert("Error: Could not find policy data (Named Range 'Policies'). Checklist formulas cannot be applied.");
+  if (!ss.getRangeByName("Policies")) {
+      Logger.log("ERROR: Named range 'Policies' not found. Cannot create checklist.");
       return;
   }
-
   if (!sheet) {
-    Logger.log(`Sheet '${sheetName}' not found. Attempting to copy from template.`);
-    const copySuccess = copyWorkspaceSecurityChecklistTemplate();
-    if (!copySuccess) {
-        Logger.log(`ERROR: Failed to copy template for ${sheetName}. Cannot apply formulas.`);
+    if (!copyWorkspaceSecurityChecklistTemplate()) {
+        Logger.log(`ERROR: Failed to copy template for ${sheetName}.`);
         return;
     }
     sheet = ss.getSheetByName(sheetName);
-    if(!sheet) {
-        Logger.log(`ERROR: ${sheetName} sheet still not found after attempting copy. Cannot apply formulas.`);
-        return;
-    }
-  } else {
-      Logger.log(`Sheet '${sheetName}' found. Formulas will be applied. Existing content in E:F for non-matched rows will be preserved.`);
   }
+  if (!sheet || sheet.getLastRow() < 1) return;
+  
+  const columnCValues = sheet.getRange(1, 3, sheet.getLastRow(), 1).getValues();
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 1) {
-      Logger.log(`${sheetName} sheet seems empty or headerless. Cannot apply formulas.`);
-      return;
-  }
-  const columnCValues = sheet.getRange(1, 3, lastRow, 1).getValues();
-
-  // Formula map using original logic where possible
+  // Formula map
   const formulaMap = {
     "Require 2-Step Verification for users": [
       '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'two step verification enforcement\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'two step verification enforcement\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'two step verification enforcement\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
@@ -640,7 +505,7 @@ function createWorkspaceSecurityChecklistSheet() {
     ],
     "Configure Google session control to strengthen session expiration": [
       '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'session controls\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'session controls\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'session controls\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
-      '=IFERROR(LET(text_value, TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select D where B = \'session controls\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), seconds, REGEXEXTRACT(text_value, "(\\d+)s$"), total_seconds,VALUE(seconds), days, INT(total_seconds / (24 * 3600)), remaining_seconds, MOD(total_seconds, (24 * 3600)), hours, INT(remaining_seconds / 3600), CONCATENATE(days, " days ", hours, " hours")), IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select D where B = \'session controls\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), "Setting Not Found"))'
+      '=IFERROR(LET(data, FILTER(\'Cloud Identity Policies\'!D:D, \'Cloud Identity Policies\'!B:B = "session controls"), IF(COUNTA(data)=0, "Setting Not Found", TEXTJOIN(CHAR(10), TRUE, MAP(data, LAMBDA(cell, IF(ISBLANK(cell), "", IFERROR(LET(total_seconds, VALUE(REGEXEXTRACT(TO_TEXT(cell), "(\\d+)")), days, INT(total_seconds / 86400), hours, INT(MOD(total_seconds, 86400) / 3600), minutes, INT(MOD(total_seconds, 3600) / 60), IF(total_seconds = 0, "0 minutes", TEXTJOIN(" ", TRUE, IF(days > 0, days & IF(days = 1, " day", " days"), ""), IF(hours > 0, hours & IF(hours = 1, " hour", " hours"), ""), IF(minutes > 0, minutes & IF(minutes = 1, " minute", " minutes"), "")))), cell))))))))'
     ],
      "Share data with Google Cloud services": [
        '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'cloud data sharing\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'cloud data sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'cloud data sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"Policy Not Found")',
@@ -808,122 +673,46 @@ function createWorkspaceSecurityChecklistSheet() {
     ]
   };
 
-
   Logger.log(`Applying formulas to ${sheetName}...`);
-  let formulasApplied = 0;
-  let formulaErrors = 0;
-  let keyNotFound = 0;
-
-  // Loop through the rows from the sheet values
   for (let i = 0; i < columnCValues.length; i++) {
     const rowNumber = i + 1;
     const policyText = columnCValues[i][0] ? String(columnCValues[i][0]).trim() : "";
-
-    // Skip header row and empty rows in Column C
-    if (rowNumber === 1 || !policyText) {
-      continue;
-    }
-
-    // Check if key exists in the map
+    if (rowNumber === 1 || !policyText) continue;
     if (formulaMap.hasOwnProperty(policyText)) {
       const formulas = formulaMap[policyText];
-      if (formulas && Array.isArray(formulas) && formulas.length === 2) {
-        try {
-           // Set Column E formula
-           sheet.getRange(rowNumber, 5).setFormula(formulas[0]);
-
-           // Set Column F formula or value
-           if (String(formulas[1]).startsWith('=')) {
-              sheet.getRange(rowNumber, 6).setFormula(formulas[1]);
-           } else {
-              // Set as plain text (remove surrounding quotes if present)
-              const cellValue = String(formulas[1]).replace(/^"|"$/g, '');
-              sheet.getRange(rowNumber, 6).setValue(cellValue);
-           }
-           formulasApplied++;
-        } catch (e) {
-           Logger.log(`Error setting formula/value at row ${rowNumber} ('${policyText}'): ${e.message}`);
+      try {
+        sheet.getRange(rowNumber, 5).setFormula(formulas[0]);
+        if (String(formulas[1]).startsWith('=')) {
+           sheet.getRange(rowNumber, 6).setFormula(formulas[1]);
+        } else {
+           sheet.getRange(rowNumber, 6).setValue(String(formulas[1]).replace(/^"|"$/g, ''));
         }
-      } else {
-          // Log only once per key if definition is bad
-          if (!formulaMap[`_logged_error_${policyText}`]) {
-             Logger.log(`WARNING: Formula definition incomplete or malformed array for key '${policyText}' in formulaMap.`);
-             formulaMap[`_logged_error_${policyText}`] = true;
-          }
-          formulaErrors++;
-      }
-    } else {
-      // Key not found in map - DO NOTHING to the cell
-      keyNotFound++;
-      // Logging for missing keys is suppressed
+      } catch (e) { /* ignore */ }
     }
-  } // --- End for loop ---
-
-  Logger.log(`Finished applying formulas. Applied/Attempted: ${formulasApplied}, Map Errors: ${formulaErrors}, Keys Not Found (Ignored): ${keyNotFound}`);
-
+  }
   SpreadsheetApp.flush();
   Logger.log(`${sheetName} processing complete.`);
-  SpreadsheetApp.getUi().alert('Workspace Policy Check is completed.');
-
 }
-
-
-// =============================================
-// Template Copy Function
-// =============================================
 
 function copyWorkspaceSecurityChecklistTemplate() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const templateId = '1rbgKhzDYDmPDKuyx9_qR3CWpTX_ouacEKViuPwAUAf8';
   const targetSheetName = "Workspace Security Checklist";
-
   try {
-    Logger.log(`Attempting to open template spreadsheet with ID: ${templateId}`);
-    const templateSpreadsheet = SpreadsheetApp.openById(templateId);
-    Logger.log(`Template spreadsheet "${templateSpreadsheet.getName()}" opened.`);
-
-    const templateSheet = templateSpreadsheet.getSheetByName(targetSheetName);
-    if(!templateSheet) {
-      const message = `Error: Sheet named "${targetSheetName}" not found in the template spreadsheet (ID: ${templateId}). Unable to copy.`;
-      Logger.log(message);
-      return false; // Indicate failure
-    }
-    Logger.log(`Found sheet "${targetSheetName}" in template.`);
-
-    let existingSheet = ss.getSheetByName(targetSheetName);
-    if (existingSheet) {
-        Logger.log(`Sheet "${targetSheetName}" already exists. Deleting it before copying.`);
-        ss.deleteSheet(existingSheet);
-    }
-
-    Logger.log(`Copying sheet "${targetSheetName}" to active spreadsheet...`);
-    const newSheet = templateSheet.copyTo(ss);
-    newSheet.setName(targetSheetName);
+    const templateSheet = SpreadsheetApp.openById(templateId).getSheetByName(targetSheetName);
+    if(!templateSheet) return false;
+    if (ss.getSheetByName(targetSheetName)) ss.deleteSheet(ss.getSheetByName(targetSheetName));
+    const newSheet = templateSheet.copyTo(ss).setName(targetSheetName);
     ss.setActiveSheet(newSheet);
-    Logger.log(`Sheet "${targetSheetName}" copied and renamed successfully.`);
-
-    let sheet1 = ss.getSheetByName("Sheet1");
-    if(sheet1 && ss.getSheets().length > 1) {
-        ss.deleteSheet(sheet1);
-        Logger.log("Default 'Sheet1' deleted.");
-    }
-
+    const sheet1 = ss.getSheetByName("Sheet1");
+    if(sheet1 && ss.getSheets().length > 1) ss.deleteSheet(sheet1);
     const domain = Session.getActiveUser().getEmail().split('@')[1];
-    const expectedTitle = `[${domain}] DoiT AdminPulse for Workspace`;
-    if (ss.getName() !== expectedTitle) {
-        ss.rename(expectedTitle);
-        Logger.log(`Spreadsheet title set to: "${expectedTitle}"`);
-    } else {
-         Logger.log("Spreadsheet title already set correctly.");
+    if (ss.getName() !== `[${domain}] DoiT AdminPulse for Workspace`) {
+        ss.rename(`[${domain}] DoiT AdminPulse for Workspace`);
     }
-
-    Logger.log("Workspace Security Checklist template copy process completed successfully.");
     return true;
-
-  } catch (error) {
-    const errorMessage = `Error during template copy process: ${error.message}. Check template ID, permissions, and sheet name.`;
-    Logger.log(`${errorMessage} - Stack: ${error.stack}`);
-    SpreadsheetApp.getUi().alert(errorMessage);
+  } catch (e) {
+    Logger.log(`Error during template copy: ${e.message}`);
     return false;
   }
 }
