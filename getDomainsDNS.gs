@@ -41,7 +41,6 @@ function getDomainList() {
     if (domainList.length === 0) {
       sheet.getRange("A2").setValue("No domains found for this customer.");
       Logger.log(`In ${functionName}: No domains found. Aborting further processing.`);
-      // The finally block will still run to log completion time.
       return; 
     }
 
@@ -139,11 +138,20 @@ function getDomainList() {
     sheet.setFrozenRows(1);
 
   } catch (e) {
-    // Log the error for debugging
-    Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
-    // Display error message to the user
-    SpreadsheetApp.getActiveSpreadsheet().toast(`An error occurred: ${e.message}`, 'Error', 5);
-    Logger.log(e); // Keep original log for full error object
+    // --- START OF MODIFICATION ---
+    let message = e.message;
+    let title = '❌ Script Error';
+
+    // Check for our custom permission error message
+    if (message.includes("Permission Denied")) {
+        title = '❌ Permission Error';
+    }
+
+    // Log the fatal error for debugging
+    Logger.log(`!! FATAL ERROR in ${functionName}: ${message}\nStack: ${e.stack}`);
+    
+    // Display a blocking alert to the user.
+    SpreadsheetApp.getUi().alert(title, message, SpreadsheetApp.getUi().ButtonSet.OK);
   } finally {
     const endTime = new Date();
     const duration = (endTime.getTime() - startTime.getTime()) / 1000; // Duration in seconds
@@ -152,7 +160,6 @@ function getDomainList() {
 }
 
 // --- ALL HELPER FUNCTIONS (getDomainInformation_, getDnsRecords, performGoogleDNSLookup) REMAIN THE SAME ---
-// --- [The code for those functions goes here] ---
 function getDomainInformation_(customerDomain) {
   const domainList = [];
   let pageToken = null;
@@ -167,16 +174,19 @@ function getDomainInformation_(customerDomain) {
         const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
         pageToken = response.nextPageToken;
 
-        if (!response || !response.domains) {
-          console.warn('No domains found or error retrieving domains.');
-          break;
+        if (response && response.domains) {
+          response.domains.forEach(function (domain) {
+            domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
+          });
         }
-
-        response.domains.forEach(function (domain) {
-          domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
-        });
         success = true;
       } catch (e) {
+        // If it's a permission error, don't retry. Throw it immediately.
+        if (e.details && e.details.code === 403) {
+          Logger.log(`Permission error detected in getDomainInformation_. Halting.`);
+          throw new Error("Permission Denied: Could not access domain information. Please run as a Super Administrator.");
+        }
+        // For other errors, use the original retry logic.
         console.error(`Error retrieving domains (retry ${retryCount + 1}/${maxRetries}):`, e);
         retryCount++;
         Utilities.sleep(1000 * Math.pow(2, retryCount));
@@ -205,6 +215,10 @@ function getDomainInformation_(customerDomain) {
         }
         success = true;
       } catch (e) {
+        if (e.details && e.details.code === 403) {
+          Logger.log(`Permission error detected in getDomainInformation_ for aliases. Halting.`);
+          throw new Error("Permission Denied: Could not access domain information. Please run as a Super Administrator.");
+        }
         console.error(`Error retrieving domain aliases (retry ${retryCount + 1}/${maxRetries}):`, e);
         retryCount++;
         Utilities.sleep(1000 * Math.pow(2, retryCount));
