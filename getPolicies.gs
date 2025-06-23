@@ -157,9 +157,26 @@ function continuePolicyFetchAndProcess() {
       if (hasNextPage) Utilities.sleep(100);
 
     } catch (error) {
-      Logger.log(`ERROR during policy fetch: ${error.message}. Stopping pagination.`);
-      ss.toast(`Error during fetch: ${error.message}`, '❌ Network Error', 30); // Also needs 'ss'
-      hasNextPage = false;
+      let userMessage = `An unexpected error occurred during the policy fetch: ${error.message}. The script cannot continue.`;
+      let errorTitle = '❌ Network Error';
+
+      // Check specifically for a 403 Permission Denied error
+      if (error.message.includes("HTTP 403") || error.message.includes("Permission denied")) {
+        userMessage = "Permission Denied: Could not fetch policies. This report requires Super Administrator privileges to run successfully.";
+        errorTitle = '❌ Permission Error';
+      }
+
+      Logger.log(`FATAL ERROR during policy fetch: ${error.message}. Halting execution.`);
+      Logger.log(`Stack: ${error.stack}`);
+
+      ss.toast(userMessage, errorTitle, 60);
+      ui.alert(errorTitle, userMessage, ui.ButtonSet.OK);
+
+      deleteTriggers();
+      PropertiesService.getScriptProperties().deleteAllProperties();
+      
+      // CRITICAL: Halt the function completely.
+      return; 
     }
   } while (hasNextPage);
 
