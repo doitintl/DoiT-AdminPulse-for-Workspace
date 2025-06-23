@@ -292,7 +292,22 @@ function finalizeAllSheets(policyMap, additionalServicesData, startTime) {
     Logger.log(`✅ FINISH: Script completed at ${endTime.toLocaleString()}`);
     Logger.log(successMessage);
     Logger.log(`============================================================`);
-    
+
+    // Add the completion timestamp to the Workspace Security Checklist sheet.
+    try {
+      const checklistSheet = ss.getSheetByName("Workspace Security Checklist");
+      if (checklistSheet) {
+        const timestampMessage = "Last policy inventory completed at: " + endTime.toLocaleString();
+        checklistSheet.getRange("F1").setValue(timestampMessage)
+                                   .setFontStyle("Montserrat")
+                                   .setFontColor("#ffffff")
+                                   .setHorizontalAlignment("left");
+        Logger.log(`Updated timestamp on 'Workspace Security Checklist' sheet.`);
+      }
+    } catch (e) {
+      // If this fails, it's not critical, so just log it.
+      Logger.log(`Warning: Could not set completion timestamp. Error: ${e.message}`);
+    }
     // Show a final success toast for 10 seconds instead of a blocking alert
     ss.toast(successMessage, '✅ Complete!', 10);
 }

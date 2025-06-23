@@ -1,18 +1,4 @@
 /**
- * This code creates the UI button under the Extensions menu. 
- * It allows an administrator to activate the application, set up the sheet, 
- * run a full policy check, or run individual inventory reports.
- */
-
-/**
- * Runs when the add-on is installed.
- * @param {Object} e The event parameter for a simple trigger.
- */
-function onInstall(e) {
-  onOpen(e);
-}
-
-/**
  * Creates the add-on menu in the spreadsheet UI when the document is opened.
  * @param {Object} e The event parameter for a simple trigger.
  */
@@ -57,14 +43,14 @@ function onOpen(e) {
     .addItem('Set up or Refresh Sheet', 'setupSheet')
     .addSeparator()
     .addSubMenu(ui.createMenu('Inventory Workspace Settings')
-      .addItem('Check all policies', 'runFullPolicyCheck')) // This now correctly calls runFullPolicyCheck
+      // --- THIS IS THE MODIFIED LINE ---
+      .addItem('Check all policies', 'promptAndRunFullPolicyCheck')) // Calls the new wrapper function
     .addSeparator()
     .addSubMenu(reportsMenu) // Add the fully constructed reports menu
     .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
 }
-
 
 /**
  * Placeholder function for the 'Activate Application' menu item.
@@ -88,4 +74,30 @@ function setupSheet() {
     'Sheet setup complete!',
     ui.ButtonSet.OK
   );
+}
+
+/**
+ * Shows a confirmation dialog before running the full policy check.
+ * This is called by the menu item.
+ */
+function promptAndRunFullPolicyCheck() {
+  const ui = SpreadsheetApp.getUi();
+
+  const response = ui.alert(
+    'Confirmation Required',
+    'This function requires Super Administrator privileges and may take several minutes to complete.\n\nDo you want to proceed?',
+    ui.ButtonSet.YES_NO
+  );
+
+  // Check the user's response
+  if (response == ui.Button.YES) {
+    // If they click "Yes", run the main function
+    Logger.log("User confirmed. Starting full policy check.");
+    SpreadsheetApp.getActiveSpreadsheet().toast('Starting policy check...', 'Please wait', 10);
+    runFullPolicyCheck();
+  } else {
+    // If they click "No", do nothing and log the cancellation
+    Logger.log("User cancelled the policy check.");
+    SpreadsheetApp.getActiveSpreadsheet().toast('Policy check cancelled.', 'Info', 5);
+  }
 }

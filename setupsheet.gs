@@ -62,19 +62,37 @@ function setupSheet() {
     const copiedFile = DriveApp.getFileById(copiedFileId);
     copiedFile.setTrashed(true); // Clean up temporary file.
 
-    // --- Setup Complete Alert ---
-    ui.alert(
-      'Sheet Setup Complete',
-      'Welcome to the DoiT AdminPulse for Workspace!\n\n' +
-        'This tool provides a comprehensive checklist of security controls for Business and Enterprise organizations.\n\n' +
-        'To use this tool and all its functions, you must have a Super Admin account.\n\n' +
-        'Many settings do not have an API, so we have included links to Google\'s documentation, best practice recommendations, and the relevant section of the admin console.\n\n' +
-        'To Begin, Run the read-only API reports using the Check all policies button under Extensions > DoiT AdminPulse for Workspace > Inventory Workspace Settings menu. This will inventory all Google Workspace policies to the sheet and present an alert when it completes.\n\n' +
-        'Run the read-only API reports using the Run Reports menu under Extensions > DoiT AdminPulse for Workspace. These reports will help you answer questions on the Security Checklist.\n\n' +
-        'After running the API reports, complete the checklist of security controls and take notes on areas where your organization can improve its security posture.\n\n' +
-        'For developer support or assistance with reviewing your environment and understanding the findings, use the Get Support button in the Extensions menu.',
-      ui.ButtonSet.OK
+    // --- START OF MODIFIED SECTION ---
+    // Combine the detailed informational text with the actionable question at the end.
+    const welcomeMessage = 'Welcome to the DoiT AdminPulse for Workspace!\n\n' +
+      'This tool provides a comprehensive checklist of security controls for Business and Enterprise organizations.\n\n' +
+      'To use this tool and all its functions, you must have a Super Admin account.\n\n' +
+      'Many settings do not have an API, so we have included links to Google\'s documentation, best practice recommendations, and the relevant section of the admin console.\n\n' +
+      'After running the API reports, complete the checklist of security controls and take notes on areas where your organization can improve its security posture.\n\n' +
+      'For developer support or assistance, use the Get Support button in the Extensions menu.\n\n' +
+      '------------------------------------------------------------------\n\n' +
+      'Would you like to run the read-only policy inventory now?\n\n' +
+      '(This may take several minutes to complete.)';
+
+    const finalResponse = ui.alert(
+      'Setup Complete!',
+      welcomeMessage,
+      ui.ButtonSet.YES_NO
     );
+
+    // Check which button the user clicked.
+    if (finalResponse == ui.Button.YES) {
+      Logger.log("User chose to run the policy check immediately after setup.");
+      // Give the user immediate feedback that the process is starting.
+      SpreadsheetApp.getActiveSpreadsheet().toast('Starting policy check... Please wait', 10);
+      
+      // Call the other function.
+      runFullPolicyCheck();
+      
+    } else {
+      Logger.log("User chose not to run the policy check after setup.");
+    }
+    // --- END OF MODIFIED SECTION ---
 
   } catch (e) {
     Logger.log(`!! ERROR in ${functionName}: An unexpected error occurred. ${e.toString()}`);
