@@ -1,126 +1,115 @@
 function getSharedDrives() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = spreadsheet.getSheets();
-  const lastSheetIndex = sheets.length;
+  const functionName = 'getSharedDrives';
+  const startTime = new Date();
+  Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
 
-  let sharedDrivesSheet = spreadsheet.getSheetByName('Shared Drives');
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Check if the sheet exists, delete it if it does
-  if (sharedDrivesSheet) {
-    spreadsheet.deleteSheet(sharedDrivesSheet);
-  }
+    // --- DEPENDENCY CHECK ---
+    // Check if the 'OrgID2Path' named range exists, which is created by getOrgUnits.
+    const orgDataRange = spreadsheet.getRangeByName('OrgID2Path');
+    if (!orgDataRange) {
+      // If the range doesn't exist, inform the user and run the prerequisite script.
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        "Required Org Unit data not found. Running the update first. This may take a moment...",
+        "Dependency Update", -1 // A negative duration means the toast stays until dismissed or replaced.
+      );
+      getOrgUnits(); // Run the function that creates the named ranges.
+      SpreadsheetApp.getActiveSpreadsheet().toast("Org Unit data updated. Continuing with Shared Drives report.", "Update Complete", 5);
+    }
+    // --- END DEPENDENCY CHECK ---
 
-  // Create a new 'Shared Drives' sheet at the last index
-  sharedDrivesSheet = spreadsheet.insertSheet('Shared Drives', lastSheetIndex);
+    let sharedDrivesSheet = spreadsheet.getSheetByName('Shared Drives');
+    if (sharedDrivesSheet) {
+      spreadsheet.deleteSheet(sharedDrivesSheet);
+    }
+    sharedDrivesSheet = spreadsheet.insertSheet('Shared Drives', spreadsheet.getNumSheets());
 
-  // Add headers to the sheet
-  var headers = [
-    'Audit Date',
-    'ID',
-    'Name',
-    'Copy Requires Writer Permission',
-    'Domain Users Only',
-    'Drive Members Only',
-    'Admin Managed Restrictions',
-    'Sharing Folders Requires Organizer Permission',
-    'orgUnitId',
-    'Organization Unit'
-  ];
-  sharedDrivesSheet.appendRow(headers);
-
-  // Format the headers
-  var headerRange = sharedDrivesSheet.getRange('A1:J1');
-  headerRange.setFontWeight('bold').setFontColor('#ffffff').setFontFamily('Montserrat');
-  headerRange.setBackground('#fc3165');
-
-  const startTime = new Date().getTime();
-  const audit_timestamp = Utilities.formatDate(
-    new Date(),
-    "UTC",
-    "yyyy-MM-dd'T'HH:mm:ss'Z'",
-  );
-  const rowsToWrite = [];
-
-  let sharedDrives = Drive.Drives.list({
-    maxResults: 100,
-    useDomainAdminAccess: true,
-    fields: "drives(id,name,restrictions,orgUnitId)",
-  });
-
-  let sharedDrivesItems = sharedDrives.drives || [];
-
-  // If a next page token exists then iterate through again.
-  while (sharedDrives.nextPageToken) {
-    sharedDrives = Drive.Drives.list({
-      pageToken: sharedDrives.nextPageToken,
-      maxResults: 100,
-      useDomainAdminAccess: true,
-      hidden: false,
-      fields: "drives(id,name,restrictions,orgUnitId)",
-    });
-    sharedDrivesItems = sharedDrivesItems.concat(sharedDrives.drives || []);
-  }
-
-  sharedDrivesItems.forEach(function (value, index) {
-    const newRow = [
-      audit_timestamp,
-      value.id,
-      value.name,
-      value.restrictions ? value.restrictions.copyRequiresWriterPermission : null,
-      value.restrictions ? value.restrictions.domainUsersOnly : null,
-      value.restrictions ? value.restrictions.driveMembersOnly : null,
-      value.restrictions ? value.restrictions.adminManagedRestrictions : null,
-      value.restrictions ? value.restrictions.sharingFoldersRequiresOrganizerPermission : null,
-      value.orgUnitId,
+    const headers = [
+      'Audit Date', 'ID', 'Name', 'Copy Requires Writer Permission', 'Domain Users Only',
+      'Drive Members Only', 'Admin Managed Restrictions', 'Sharing Folders Requires Organizer Permission',
+      'orgUnitId', 'Organization Unit'
     ];
-    // add to row array instead of append because append is slow
-    rowsToWrite.push(newRow);
+    sharedDrivesSheet.getRange('A1:J1').setValues([headers])
+      .setFontWeight('bold')
+      .setFontColor('#ffffff')
+      .setFontFamily('Montserrat')
+      .setBackground('#fc3165');
 
-    // Set the formula for each row dynamically
-    const formula = `=IFERROR(VLOOKUP(I${index + 2}, OrgID2Path, 2, FALSE), VLOOKUP(I${index + 2}, Org2ParentPath, 2, FALSE))`;
-    sharedDrivesSheet.getRange(index + 2, 10).setFormula(formula);
-  });
+    const audit_timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-M-dd HH:mm:ss");
+    const rowsToWrite = [];
+    const formulasToWrite = [];
 
-  // Write data to the sheet only if there is data to write
-  if (rowsToWrite.length > 0) {
-    sharedDrivesSheet
-      .getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length)
-      .setValues(rowsToWrite);
+    let pageToken = null;
+    let sharedDrivesItems = [];
+    do {
+      const response = Drive.Drives.list({
+        pageToken: pageToken,
+        maxResults: 100,
+        useDomainAdminAccess: true,
+        fields: "nextPageToken,drives(id,name,restrictions,orgUnitId)",
+      });
+      if (response.drives) {
+        sharedDrivesItems = sharedDrivesItems.concat(response.drives);
+      }
+      pageToken = response.nextPageToken;
+    } while (pageToken);
+
+
+    if (sharedDrivesItems.length > 0) {
+      sharedDrivesItems.forEach(function(value, index) {
+        const newRow = [
+          audit_timestamp,
+          value.id,
+          value.name,
+          value.restrictions ? value.restrictions.copyRequiresWriterPermission : null,
+          value.restrictions ? value.restrictions.domainUsersOnly : null,
+          value.restrictions ? value.restrictions.driveMembersOnly : null,
+          value.restrictions ? value.restrictions.adminManagedRestrictions : null,
+          value.restrictions ? value.restrictions.sharingFoldersRequiresOrganizerPermission : null,
+          value.orgUnitId,
+        ];
+        rowsToWrite.push(newRow);
+        
+        const formula = `=IFERROR(VLOOKUP(I${index + 2} & "", OrgID2Path, 3, FALSE), IFERROR(VLOOKUP(I${index + 2} & "", Org2ParentPath, 2, FALSE), "Not Found"))`;
+        formulasToWrite.push([formula]);
+      });
+
+      sharedDrivesSheet.getRange(2, 1, rowsToWrite.length, rowsToWrite[0].length).setValues(rowsToWrite);
+      SpreadsheetApp.flush();
+      sharedDrivesSheet.getRange(2, 10, formulasToWrite.length, 1).setFormulas(formulasToWrite);
+
+    } else {
+        sharedDrivesSheet.getRange("A2").setValue("No Shared Drives found.");
+    }
+
+    sharedDrivesSheet.hideColumns(9);
+
+    if (sharedDrivesSheet.getMaxColumns() > 10) {
+        sharedDrivesSheet.deleteColumns(11, sharedDrivesSheet.getMaxColumns() - 10);
+    }
+    
+    sharedDrivesSheet.autoResizeColumns(1, 3);
+    sharedDrivesSheet.autoResizeColumn(10);
+
+    const lastRow = sharedDrivesSheet.getLastRow();
+    if (lastRow > 1) {
+      const range = sharedDrivesSheet.getRange('D2:H' + lastRow);
+      const rule1 = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('FALSE').setBackground('#ffcccb').setRanges([range]).build();
+      const rule2 = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('TRUE').setBackground('#b7e1cd').setRanges([range]).build();
+      sharedDrivesSheet.setConditionalFormatRules([rule1, rule2]);
+
+      const filterRange = sharedDrivesSheet.getRange('A1:J' + lastRow);
+      filterRange.createFilter();
+    }
+
+  } catch (e) {
+    Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
+    SpreadsheetApp.getUi().alert(`An error occurred in ${functionName}: ${e.message}`);
+  } finally {
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
+    Logger.log(`-- Finished ${functionName} at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
   }
-
-  sharedDrivesSheet.hideColumns(9);
-
-  // Delete columns K-Z
-  sharedDrivesSheet.deleteColumns(11, 16);
-
-  // Auto-resize columns A, B, C, and J
-  sharedDrivesSheet.autoResizeColumns(1, 3);
-  sharedDrivesSheet.autoResizeColumns(10, 1);
-
-  // Add conditional formatting rules
-  var endRow = sharedDrivesSheet.getLastRow();
-  var range = sharedDrivesSheet.getRange('D2:H' + endRow);
-  var rule1 = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo('FALSE')
-    .setBackground('#ffcccb')
-    .setRanges([range])
-    .build();
-  var rule2 = SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo('TRUE')
-    .setBackground('#b7e1cd')
-    .setRanges([range])
-    .build();
-  var rules = sharedDrivesSheet.getConditionalFormatRules();
-  rules.push(rule1);
-  rules.push(rule2);
-  sharedDrivesSheet.setConditionalFormatRules(rules);
-
-    // --- Add Filter View ---
-  const lastRow = sharedDrivesSheet.getLastRow(); 
-  const filterRange = sharedDrivesSheet.getRange('D1:J' + lastRow);  // Filter columns D through H
-  filterRange.createFilter(); 
-
-  const endTime = new Date().getTime();
-  const elapsed = (endTime - startTime) / 1000;
-  Logger.log("Elapsed Seconds: " + elapsed);
 }

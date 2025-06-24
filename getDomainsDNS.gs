@@ -6,14 +6,16 @@
  * but has been significantly modified to remove Cloudflare DNS and integrate
  * with Google Public DNS and Google Admin API.
  * */
-
 function getDomainList() {
-  const customerDomain = 'my_customer'; 
-
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = spreadsheet.getSheetByName('Domains/DNS');
+  const functionName = 'getDomainList';
+  const startTime = new Date();
+  Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
 
   try {
+    const customerDomain = 'my_customer';
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = spreadsheet.getSheetByName('Domains/DNS');
+
     if (sheet) {
       spreadsheet.deleteSheet(sheet);
     }
@@ -27,20 +29,26 @@ function getDomainList() {
       .setFontFamily("Montserrat")
       .setBackground("#fc3165")
       .setFontWeight("bold");
-    sheet.getRange("D1").setNote("Mail Exchange, Red cells indicate Google MX records were not found.");
-    sheet.getRange("E1").setNote("Sender Policy Framework, Red cells indicate Google SPF record was not found.");
-    sheet.getRange("F1").setNote("DomainKeys Identified Mail, Red cells indicate the default DKIM selector for Google was not found.");
-    sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance, Red cells indicate no DMARC records found.");
+    sheet.getRange("D1").setNote("Mail Exchange, Green cells indicate Google MX records were found.");
+    sheet.getRange("E1").setNote("Sender Policy Framework, Green cells indicate Google SPF record was found.");
+    sheet.getRange("F1").setNote("DomainKeys Identified Mail, Green cells indicate the default DKIM selector for Google was found.");
+    sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance, Green cells indicate DMARC records were found.");
     sheet.getRange("H1").setNote("Status of DNS Lookups");
 
     // Get the Domain
     const domainList = getDomainInformation_(customerDomain);
 
+    if (domainList.length === 0) {
+      sheet.getRange("A2").setValue("No domains found for this customer.");
+      Logger.log(`In ${functionName}: No domains found. Aborting further processing.`);
+      return; 
+    }
+
     // Write domain information to spreadsheet in one batch
     sheet.getRange(2, 1, domainList.length, domainList[0].length).setValues(domainList);
 
     // Get DNS Records
-    const dnsResultsWithStatus = getDnsRecords(domainList); // Modified to return DNS results AND status
+    const dnsResultsWithStatus = getDnsRecords(domainList);
 
     // Get the last row
     const lastRow = sheet.getLastRow();
@@ -58,30 +66,24 @@ function getDomainList() {
         item.dmarcRecords.status !== "Lookup Complete") {
         //Something is not complete.
         let issues = [];
-        if (item.mxRecords.status !== "Lookup Complete") {
-          issues.push(`MX: ${item.mxRecords.status}`);
-        }
-        if (item.spfRecords.status !== "Lookup Complete") {
-          issues.push(`SPF: ${item.spfRecords.status}`);
-        }
-        if (item.dkimRecords.status !== "Lookup Complete") {
-          issues.push(`DKIM: ${item.dkimRecords.status}`);
-        }
-        if (item.dmarcRecords.status !== "Lookup Complete") {
-          issues.push(`DMARC: ${item.dmarcRecords.status}`);
-        }
-        overallStatus = "Issues Found:\n" + issues.join("\n"); // Added line breaks
+        if (item.mxRecords.status !== "Lookup Complete") issues.push(`MX: ${item.mxRecords.status}`);
+        if (item.spfRecords.status !== "Lookup Complete") issues.push(`SPF: ${item.spfRecords.status}`);
+        if (item.dkimRecords.status !== "Lookup Complete") issues.push(`DKIM: ${item.dkimRecords.status}`);
+        if (item.dmarcRecords.status !== "Lookup Complete") issues.push(`DMARC: ${item.dmarcRecords.status}`);
+        overallStatus = "Issues Found:\n" + issues.join("\n");
 
       } else {
         overallStatus = "Lookup Complete";
       }
       return [overallStatus];
     });
-    sheet.getRange(2, 8, lastRow - 1, 1).setValues(statusMessages); // Write status messages to column H
+    sheet.getRange(2, 8, lastRow - 1, 1).setValues(statusMessages);
 
 
     // Delete columns I-Z
-    sheet.deleteColumns(9, 18);
+    if (sheet.getMaxColumns() > 8) {
+        sheet.deleteColumns(9, sheet.getMaxColumns() - 8);
+    }
 
     // Delete empty rows
     const dataRange = sheet.getDataRange();
@@ -97,83 +99,67 @@ function getDomainList() {
     sheet.setColumnWidth(4, 150);
     sheet.setColumnWidth(5, 150);
     sheet.setColumnWidth(6, 150);
-    sheet.setColumnWidth(7, 164); // Adjusted for Status Message
-    sheet.setColumnWidth(8, 300); // Adjusted for Status Message
+    sheet.setColumnWidth(7, 164);
+    sheet.setColumnWidth(8, 300);
 
     // Apply conditional formatting rules
-    const rangeD = sheet.getRange("D2:D" + lastRow);
-    const ruleD = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextContains("google")
-      .setBackground("#b7e1cd")
-      .setRanges([rangeD])
-      .build();
+    const rules = [];
+    const ranges = {
+        D: "google",
+        E: "_spf.google.com",
+        F: "v=dkim1;",
+        G: "v=dmarc"
+    };
 
-    const rangeE = sheet.getRange("E2:E" + lastRow);
-    const ruleE = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextContains("_spf.google.com")
-      .setBackground("#b7e1cd")
-      .setRanges([rangeE])
-      .build();
+    for (const col in ranges) {
+        const range = sheet.getRange(`${col}2:${col}${lastRow}`);
+        const text = ranges[col];
+        
+        const greenRule = SpreadsheetApp.newConditionalFormatRule()
+            .whenTextContains(text)
+            .setBackground("#b7e1cd")
+            .setRanges([range])
+            .build();
+        
+        const redRule = SpreadsheetApp.newConditionalFormatRule()
+            .whenTextDoesNotContain(text)
+            .setBackground("#ffb6c1")
+            .setRanges([range])
+            .build();
 
-    const rangeF = sheet.getRange("F2:F" + lastRow);
-    const ruleF = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextContains("v=dkim1;")
-      .setBackground("#b7e1cd")
-      .setRanges([rangeF])
-      .build();
-
-    const rangeG = sheet.getRange("G2:G" + lastRow);
-    const ruleG = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextContains("v=dmarc")
-      .setBackground("#b7e1cd")
-      .setRanges([rangeG])
-      .build();
-
-    const rangeDRed = sheet.getRange("D2:D" + lastRow);
-    const ruleDRed = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextDoesNotContain("google")
-      .setBackground("#ffb6c1")
-      .setRanges([rangeD])
-      .build();
-
-    const rangeERed = sheet.getRange("E2:E" + lastRow);
-    const ruleERed = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextDoesNotContain("_spf.google.com")
-      .setBackground("#ffb6c1")
-      .setRanges([rangeE])
-      .build();
-
-    const rangeFRed = sheet.getRange("F2:F" + lastRow);
-    const ruleFRed = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextDoesNotContain("v=dkim1;")
-      .setBackground("#ffb6c1")
-      .setRanges([rangeF])
-      .build();
-
-    const rangeGRed = sheet.getRange("G2:G" + lastRow);
-    const ruleGRed = SpreadsheetApp.newConditionalFormatRule()
-      .whenTextDoesNotContain("v=dmarc")
-      .setBackground("#ffb6c1")
-      .setRanges([rangeG])
-      .build();
-
-    const rules = [ruleD, ruleE, ruleF, ruleG, ruleDRed, ruleERed, ruleFRed, ruleGRed];
+        rules.push(greenRule, redRule);
+    }
     sheet.setConditionalFormatRules(rules);
 
     // --- Add Filter View ---
-    const filterRange = sheet.getRange('B1:H' + sheet.getLastRow());
-    filterRange.createFilter();
+    sheet.getRange('A1:H' + sheet.getLastRow()).createFilter();
 
     // --- Freeze Row 1 ---
     sheet.setFrozenRows(1);
 
   } catch (e) {
-    // Display error message to the user
-    SpreadsheetApp.getActiveSpreadsheet().toast(`An error occurred: ${e.message}`, 'Error', 5);
-    Logger.log(e);
+    // --- START OF MODIFICATION ---
+    let message = e.message;
+    let title = '❌ Script Error';
+
+    // Check for our custom permission error message
+    if (message.includes("Permission Denied")) {
+        title = '❌ Permission Error';
+    }
+
+    // Log the fatal error for debugging
+    Logger.log(`!! FATAL ERROR in ${functionName}: ${message}\nStack: ${e.stack}`);
+    
+    // Display a blocking alert to the user.
+    SpreadsheetApp.getUi().alert(title, message, SpreadsheetApp.getUi().ButtonSet.OK);
+  } finally {
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000; // Duration in seconds
+    Logger.log(`-- Finished ${functionName} at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
   }
 }
 
+// --- ALL HELPER FUNCTIONS (getDomainInformation_, getDnsRecords, performGoogleDNSLookup) REMAIN THE SAME ---
 function getDomainInformation_(customerDomain) {
   const domainList = [];
   let pageToken = null;
@@ -188,16 +174,19 @@ function getDomainInformation_(customerDomain) {
         const response = AdminDirectory.Domains.list(customerDomain, { pageToken: pageToken });
         pageToken = response.nextPageToken;
 
-        if (!response || !response.domains) {
-          console.warn('No domains found or error retrieving domains.');
-          break;
+        if (response && response.domains) {
+          response.domains.forEach(function (domain) {
+            domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
+          });
         }
-
-        response.domains.forEach(function (domain) {
-          domainList.push([domain.domainName, domain.verified, domain.isPrimary]);
-        });
         success = true;
       } catch (e) {
+        // If it's a permission error, don't retry. Throw it immediately.
+        if (e.details && e.details.code === 403) {
+          Logger.log(`Permission error detected in getDomainInformation_. Halting.`);
+          throw new Error("Permission Denied: Could not access domain information. Please run as a Super Administrator.");
+        }
+        // For other errors, use the original retry logic.
         console.error(`Error retrieving domains (retry ${retryCount + 1}/${maxRetries}):`, e);
         retryCount++;
         Utilities.sleep(1000 * Math.pow(2, retryCount));
@@ -226,6 +215,10 @@ function getDomainInformation_(customerDomain) {
         }
         success = true;
       } catch (e) {
+        if (e.details && e.details.code === 403) {
+          Logger.log(`Permission error detected in getDomainInformation_ for aliases. Halting.`);
+          throw new Error("Permission Denied: Could not access domain information. Please run as a Super Administrator.");
+        }
         console.error(`Error retrieving domain aliases (retry ${retryCount + 1}/${maxRetries}):`, e);
         retryCount++;
         Utilities.sleep(1000 * Math.pow(2, retryCount));

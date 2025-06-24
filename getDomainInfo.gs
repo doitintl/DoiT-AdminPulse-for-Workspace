@@ -1,4 +1,8 @@
 function getDomainInfo() {
+  const functionName = 'getDomainInfo';
+  const startTime = new Date();
+  Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
+
   try {
     // Create a Customers list query request
     const customerDomain = "my_customer";
@@ -51,21 +55,26 @@ function getDomainInfo() {
     generalSheet.deleteRows(3, 998);
     generalSheet.autoResizeColumns(1, generalSheet.getLastColumn());
 
-    } catch (e) {
+  } catch (e) {
+    // Log the error for debugging purposes
+    Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
+
     // Check if the error is due to insufficient permissions
     if (e.message.indexOf("Not Authorized to access this resource/api") > -1) {
       // Display a modal dialog box for the error message
       const ui = SpreadsheetApp.getUi();
       ui.alert(
-        'Insufficient Permissions', 
-        'You need Super Admin privileges to use this feature.', 
+        'Insufficient Permissions',
+        'You need Super Admin privileges to use this feature.',
         ui.ButtonSet.OK
       );
-      // Log the detailed error for debugging
-      Logger.log(e); 
     } else {
-      // For other errors, re-throw the exception
-      throw e; 
+      // For other errors, re-throw the exception so the main script might handle it
+      throw e;
     }
+  } finally {
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000; // Duration in seconds
+    Logger.log(`-- Finished ${functionName} at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
   }
 }

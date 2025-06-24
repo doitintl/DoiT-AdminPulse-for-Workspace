@@ -1,32 +1,29 @@
 /**
- * This script will inventory names of all configured App Passwords from all users in an organization.
- * 
- */
-
+ * This script will inventory names of all configured App Passwords from all users in an organization.
+ */
 function getAppPasswords() {
-  try { 
+  const functionName = 'getAppPasswords';
+  const startTime = new Date();
+  Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
+
+  try {
     const userEmail = Session.getActiveUser().getEmail();
     const domain = userEmail.split("@").pop();
 
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    // Check for existing sheet and handle duplicates
     let appPasswordsSheet = spreadsheet.getSheetByName("App Passwords");
     if (appPasswordsSheet) {
-      // If the sheet exists, delete it first
       spreadsheet.deleteSheet(appPasswordsSheet);
     }
 
-    // Create a new sheet with the desired name
     appPasswordsSheet = spreadsheet.insertSheet("App Passwords", spreadsheet.getNumSheets());
 
-    // Sheet styling (concise)
     const headerRange = appPasswordsSheet.getRange("A1:E1");
     headerRange.setFontFamily("Montserrat")
       .setBackground("#fc3165")
       .setFontColor("white")
       .setFontWeight("bold")
       .setValues([["CodeID", "Name", "Creation Time", "Last Time Used", "User"]]);
-
     appPasswordsSheet.setFrozenRows(1);
 
     let pageToken = null;
@@ -48,26 +45,56 @@ function getAppPasswords() {
       pageToken = response.nextPageToken;
     } while (pageToken);
 
-    // Auto-resize and add filter after data is populated
-    appPasswordsSheet.autoResizeColumns(1, 5);
+    // --- Post-processing and cleanup ---
     const lastRow = appPasswordsSheet.getLastRow();
-    appPasswordsSheet.getRange('B1:E' + lastRow).createFilter();
+
+    if (lastRow > 1) { // Only run formatting if there is data
+      // Auto-resize columns
+      appPasswordsSheet.autoResizeColumns(1, 5);
+      
+      // Add filter
+      appPasswordsSheet.getRange('A1:E' + lastRow).createFilter();
+
+      // NEW: Add conditional formatting for "Never Used"
+      const neverUsedRange = appPasswordsSheet.getRange("D2:D" + lastRow);
+      const neverUsedRule = SpreadsheetApp.newConditionalFormatRule()
+        .whenTextEqualTo("Never Used")
+        .setBackground("#f4cccc") // Light red
+        .setRanges([neverUsedRange])
+        .build();
+      appPasswordsSheet.setConditionalFormatRules([neverUsedRule]);
+    }
+
+    // NEW: Delete extra columns from F onwards
+    const maxCols = appPasswordsSheet.getMaxColumns();
+    if (maxCols > 5) {
+      appPasswordsSheet.deleteColumns(6, maxCols - 5);
+    }
+    
+    // NEW: Delete empty rows from the bottom of the sheet
+    const maxRows = appPasswordsSheet.getMaxRows();
+    // Re-fetch lastRow in case it's 1 (only header)
+    const finalLastRow = appPasswordsSheet.getLastRow(); 
+    if (maxRows > finalLastRow) {
+      appPasswordsSheet.deleteRows(finalLastRow + 1, maxRows - finalLastRow);
+    }
 
   } catch (e) {
+    Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
     if (e.message.indexOf("User does not have credentials to perform this operation") > -1) {
-      // Display a modal dialog box for the error message
       const ui = SpreadsheetApp.getUi();
       ui.alert(
         'Insufficient Permissions',
         'You need Super Admin privileges to use this feature',
         ui.ButtonSet.OK
       );
-      // Log the detailed error for debugging
-      Logger.log(e);
     } else {
-      // For other errors, re-throw the exception
       throw e;
     }
+  } finally {
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
+    Logger.log(`-- Finished ${functionName} at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
   }
 }
 
@@ -75,6 +102,7 @@ function processUsers(users, sheet) {
   const data = [];
 
   users.forEach(function (user) {
+    Utilities.sleep(200); 
     const asps = AdminDirectory.Asps.list(user.primaryEmail);
 
     if (asps && asps.items) {
@@ -83,32 +111,24 @@ function processUsers(users, sheet) {
           asp.codeId,
           asp.name,
           formatTimestamp(asp.creationTime),
-          asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "",
+          asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "Never Used",
           user.primaryEmail,
         ]);
       });
     }
   });
-
-  // Dynamic batch write:
-  const batchSize = 500; // Maximum batch size
-
-  for (let i = 0; i < data.length; i += batchSize) {
-    const chunk = data.slice(i, i + batchSize); // Get the current chunk of data
-    const numRows = chunk.length; // Number of rows in the current chunk
-
-    // Write only the necessary number of rows
-    sheet.getRange(sheet.getLastRow() + 1, 1, numRows, chunk[0].length)
-      .setValues(chunk);
+  
+  if (data.length > 0) {
+     sheet.getRange(sheet.getLastRow() + 1, 1, data.length, data[0].length)
+       .setValues(data);
   }
 }
 
-// Corrected timestamp formatting:
 function formatTimestamp(timestampString) {
   if (timestampString === "0" || timestampString === 0) {
-    return "Never Used"; // Handle 0 timestamps
+    return "Never Used";
   } else if (typeof timestampString === "string" && timestampString.length >= 13) {
-    const timestamp = parseInt(timestampString.slice(0, 13));
+    const timestamp = parseInt(timestampString, 10);
     const date = new Date(timestamp);
     return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
   } else {
