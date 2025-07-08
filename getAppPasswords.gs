@@ -48,39 +48,59 @@ function getAppPasswords() {
     // --- Post-processing and cleanup ---
     const lastRow = appPasswordsSheet.getLastRow();
 
-    if (lastRow > 1) { // Only run formatting if there is data
+    // ======================== MODIFIED CODE BLOCK ========================
+    if (lastRow > 1) { // Data was found, so format it.
       // Auto-resize columns
       appPasswordsSheet.autoResizeColumns(1, 5);
       
       // Add filter
       appPasswordsSheet.getRange('A1:E' + lastRow).createFilter();
 
-      // NEW: Add conditional formatting for "Never Used"
+      // Add conditional formatting for "Never Used"
       const neverUsedRange = appPasswordsSheet.getRange("D2:D" + lastRow);
       const neverUsedRule = SpreadsheetApp.newConditionalFormatRule()
         .whenTextEqualTo("Never Used")
         .setBackground("#f4cccc") // Light red
         .setRanges([neverUsedRange])
         .build();
-      appPasswordsSheet.setConditionalFormatRules([neverUsedRule]);
-    }
+      const rules = appPasswordsSheet.getConditionalFormatRules();
+      rules.push(neverUsedRule);
+      appPasswordsSheet.setConditionalFormatRules(rules);
 
-    // NEW: Delete extra columns from F onwards
+    } else { // No data was found, so write a message.
+      const messageRange = appPasswordsSheet.getRange("A2:E2");
+      messageRange.merge()
+        .setValue("No App Passwords found.")
+        .setHorizontalAlignment("center")
+        .setFontStyle("italic")
+        .setFontColor("#666666");
+    }
+    // ===================================================================
+
+    // Delete extra columns from F onwards
     const maxCols = appPasswordsSheet.getMaxColumns();
     if (maxCols > 5) {
       appPasswordsSheet.deleteColumns(6, maxCols - 5);
     }
     
-    // NEW: Delete empty rows from the bottom of the sheet
+    // Delete empty rows from the bottom of the sheet, ensuring we don't cause an error.
     const maxRows = appPasswordsSheet.getMaxRows();
-    // Re-fetch lastRow in case it's 1 (only header)
-    const finalLastRow = appPasswordsSheet.getLastRow(); 
-    if (maxRows > finalLastRow) {
-      appPasswordsSheet.deleteRows(finalLastRow + 1, maxRows - finalLastRow);
+    // Re-fetch lastRow in case we added the "No App Passwords" message.
+    const finalLastRow = appPasswordsSheet.getLastRow();
+    
+    // We must always keep at least one non-frozen row. The header is frozen.
+    // So if finalLastRow is 1 (only header) or 2 (header + message), this logic works.
+    const rowsToKeep = Math.max(finalLastRow, 2); 
+
+    if (maxRows > rowsToKeep) {
+      appPasswordsSheet.deleteRows(rowsToKeep + 1, maxRows - rowsToKeep);
     }
 
   } catch (e) {
     Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
+    if (e.stack) {
+      Logger.log(`Stack trace: ${e.stack}`);
+    }
     if (e.message.indexOf("User does not have credentials to perform this operation") > -1) {
       const ui = SpreadsheetApp.getUi();
       ui.alert(
@@ -98,23 +118,28 @@ function getAppPasswords() {
   }
 }
 
+// NOTE: No changes were needed in the functions below.
 function processUsers(users, sheet) {
   const data = [];
 
   users.forEach(function (user) {
     Utilities.sleep(200); 
-    const asps = AdminDirectory.Asps.list(user.primaryEmail);
+    try {
+      const asps = AdminDirectory.Asps.list(user.primaryEmail);
 
-    if (asps && asps.items) {
-      asps.items.forEach(function (asp) {
-        data.push([
-          asp.codeId,
-          asp.name,
-          formatTimestamp(asp.creationTime),
-          asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "Never Used",
-          user.primaryEmail,
-        ]);
-      });
+      if (asps && asps.items) {
+        asps.items.forEach(function (asp) {
+          data.push([
+            asp.codeId,
+            asp.name,
+            formatTimestamp(asp.creationTime),
+            asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "Never Used",
+            user.primaryEmail,
+          ]);
+        });
+      }
+    } catch (err) {
+      Logger.log(`Could not process user ${user.primaryEmail}. Error: ${err.message}`);
     }
   });
   
