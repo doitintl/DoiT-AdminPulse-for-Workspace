@@ -63,6 +63,7 @@ function getOrgUnits() {
     // Ensure the identified root has the correct path in the map
     if (customerRootOuId) {
       orgUnitMap.set(customerRootOuId, "/");
+      PropertiesService.getScriptProperties().setProperty('customerRootOuId', customerRootOuId);
     }
 
     // ---- PREPARE DATA FOR WRITING TO SHEET ----

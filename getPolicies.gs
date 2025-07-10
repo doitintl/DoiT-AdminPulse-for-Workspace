@@ -375,7 +375,7 @@ function getOrgUnitValue(orgUnit) {
   }
   
   // This formula is for all non-root OUs
-  return `=IFERROR(VLOOKUP("${orgUnitID}", OrgID2Path, 3, FALSE), IFERROR(VLOOKUP("${orgUnitID}", Org2ParentPath, 2, FALSE),"${orgUnitID} (OU Lookup Failed)"))`;
+  return `=IFERROR(VLOOKUP("${orgUnitID}", OrgID2Path, 3, FALSE), IFERROR(VLOOKUP("${orgUnitID}", Org2ParentPath, 2, FALSE),"/"))`;
 }
 
 /**
