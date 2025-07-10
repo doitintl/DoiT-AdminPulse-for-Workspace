@@ -70,15 +70,15 @@ function getGroupsSettings() {
     } while (pageToken);
 
     // --- DATA WRITING AND FORMATTING ---
+    const lastRow = groupSettingsSheet.getLastRow();
+    const dataRowCount = Math.max(1, lastRow - 1); // Ensure at least 1 row for the range
+    spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + (dataRowCount + 1)));
+
     if (allRows.length > 0) {
       groupSettingsSheet.getRange(2, 1, allRows.length, headers.length).setValues(allRows);
-      const lastRow = groupSettingsSheet.getLastRow();
-
+      
       // Apply Conditional Formatting
       _applyGroupSettingsConditionalFormatting(groupSettingsSheet, lastRow);
-
-      // Create Named Range
-      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + lastRow));
 
       // Apply Filter
       const dataRange = groupSettingsSheet.getDataRange();
