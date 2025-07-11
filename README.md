@@ -7,7 +7,7 @@ A tool by DoiT for Workspace administrators to review their security posture and
   <img src="https://workspace.google.com/static/img/marketplace/en/gwmBadge.svg?style=flat-square" alt="Google Workspace Marketplace" height="68px">
 </a>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/doitintl/DoiT-AdminPulse-for-Workspace/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/doitintl/DoiT-AdminPulse-for-Workspace/blob/main/LICENSE)  [![Draft Tester Program](https://img.shields.io/badge/Draft%20Tester%20Program-grey)](https://forms.e/p1LE8PDnfiYAsjPC6) 
 
 ## Overview:
 

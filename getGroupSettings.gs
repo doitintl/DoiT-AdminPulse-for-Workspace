@@ -72,13 +72,18 @@ function getGroupsSettings() {
     // --- DATA WRITING AND FORMATTING ---
     if (allRows.length > 0) {
       groupSettingsSheet.getRange(2, 1, allRows.length, headers.length).setValues(allRows);
+      
       const lastRow = groupSettingsSheet.getLastRow();
 
       // Apply Conditional Formatting
-      _applyGroupSettingsConditionalFormatting(groupSettingsSheet, lastRow);
+      _applyGroupSettingsConditionalFormatting(groupSettingsSheet);
 
       // Create Named Range
-      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + lastRow));
+      if (spreadsheet.getRangeByName('GroupID')) {
+        spreadsheet.removeNamedRange('GroupID');
+      }
+      const dataRowCount = Math.max(1, lastRow - 1);
+      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + (dataRowCount + 1)));
 
       // Apply Filter
       const dataRange = groupSettingsSheet.getDataRange();
@@ -91,6 +96,11 @@ function getGroupsSettings() {
 
     } else {
       groupSettingsSheet.getRange("A2").setValue("No groups found.");
+      // Ensure the named range is still created even if there are no groups
+      if (spreadsheet.getRangeByName('GroupID')) {
+        spreadsheet.removeNamedRange('GroupID');
+      }
+      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C2"));
     }
     
     if (groupSettingsSheet.getMaxColumns() > headers.length) {
@@ -113,7 +123,9 @@ function getGroupsSettings() {
  * @param {number} lastRow The last row with data.
  * @private
  */
-function _applyGroupSettingsConditionalFormatting(sheet, lastRow) {
+function _applyGroupSettingsConditionalFormatting(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
   const green = "#c6efce";
   const red = "#ffc7ce";
   const rules = [];

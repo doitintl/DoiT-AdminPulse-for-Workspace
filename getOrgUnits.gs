@@ -63,6 +63,7 @@ function getOrgUnits() {
     // Ensure the identified root has the correct path in the map
     if (customerRootOuId) {
       orgUnitMap.set(customerRootOuId, "/");
+      PropertiesService.getScriptProperties().setProperty('customerRootOuId', customerRootOuId);
     }
 
     // ---- PREPARE DATA FOR WRITING TO SHEET ----
@@ -107,12 +108,13 @@ function getOrgUnits() {
     if (orgUnitsSheet.getMaxColumns() > headers.length) {
       orgUnitsSheet.deleteColumns(headers.length + 1, orgUnitsSheet.getMaxColumns() - headers.length);
     }
+    
+    const dataRowCount = Math.max(1, lastRowWithData - 1); // Ensure at least 1 row for the range
+    spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange(2, 5, dataRowCount, 2)); // E2:F...
+    spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange(2, 1, dataRowCount, 3));     // A2:C...
+
     if (lastRowWithData > 1) {
       orgUnitsSheet.autoResizeColumns(1, headers.length);
-      const dataRowCount = lastRowWithData - 1;
-      spreadsheet.setNamedRange('Org2ParentPath', orgUnitsSheet.getRange(2, 5, dataRowCount, 2)); // E2:F...
-      spreadsheet.setNamedRange('OrgID2Path', orgUnitsSheet.getRange(2, 1, dataRowCount, 3));     // A2:C...
-
       const filterRange = orgUnitsSheet.getRange(1, 1, lastRowWithData, headers.length);
       if (filterRange.getFilter()) filterRange.getFilter().remove();
       filterRange.createFilter();
