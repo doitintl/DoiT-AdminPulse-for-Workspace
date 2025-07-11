@@ -70,8 +70,11 @@ function getGroupsSettings() {
     } while (pageToken);
 
     // --- DATA WRITING AND FORMATTING ---
+    if (spreadsheet.getRangeByName('GroupID')) {
+      spreadsheet.removeNamedRange('GroupID');
+    }
     const lastRow = groupSettingsSheet.getLastRow();
-    const dataRowCount = Math.max(1, lastRow - 1); // Ensure at least 1 row for the range
+    const dataRowCount = Math.max(1, lastRow - 1);
     spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + (dataRowCount + 1)));
 
     if (allRows.length > 0) {
