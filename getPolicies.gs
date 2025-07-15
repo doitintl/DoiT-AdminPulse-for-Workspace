@@ -7,7 +7,7 @@ const TRIGGER_FUNCTION_NAME = "continuePolicyFetchAndProcess";
 const MAX_RUNTIME_MINUTES = 28;
 
 
-'''/**
+/**
  * Main function. Initializes, runs dependencies, and starts the policy fetch.
  */
 function runFullPolicyCheck() {
@@ -613,15 +613,15 @@ function createWorkspaceSecurityChecklistSheet() {
     ],
      "Set a policy for chat file sharing": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'chat file sharing\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat file sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat file sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"/")',
-        `=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = 'chat file sharing'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) externalFileSharing: ALL_FILES"&CHAR(10)&"internalFileSharing: ALL_FILES")`
+        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = \'chat file sharing\'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) externalFileSharing: ALL_FILES"&CHAR(10)&"internalFileSharing: ALL_FILES")'
     ],
      "Set a policy for Chat Apps": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'chat apps access\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat apps access\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat apps access\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"/")',
-        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = \'chat apps access\' and C = '/'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) enableApps: true"&CHAR(10)&"enableWebhooks: true")'
+        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = \'chat apps access\' and C = \'/'\'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) enableApps: true"&CHAR(10)&"enableWebhooks: true")'
     ],
      "Set sharing options for your domain": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'external sharing\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'external sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), "OUs with overridden policies" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'external sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"/")',
-        `=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), INDEX(QUERY(Policies, "select D where B = 'external sharing' and C contains '/'", 0),1)), CHAR(10)&CHAR(10), CHAR(10))), "(Default) External Sharing is ON"&CHAR(10)&"Warn for external sharing is ON"&CHAR(10)&"Visitor Sharing is ON"&CHAR(10)&"Users can publish files to anyone with link")`
+        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10), INDEX(QUERY(Policies, "select D where B = \'external sharing\' and C contains \'/'\'", 0),1)), CHAR(10)&CHAR(10), CHAR(10))), "(Default) External Sharing is ON"&CHAR(10)&"Warn for external sharing is ON"&CHAR(10)&"Visitor Sharing is ON"&CHAR(10)&"Users can publish files to anyone with link")'
     ],
     "Set the default for link sharing": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where LOWER(B) = \'general access default\'", 0))) = 0, "/", IF(ROWS(UNIQUE(QUERY(Policies, "select C where LOWER(B) = \'general access default\'", 0))) > 1, "OUs with general access differences" & CHAR(10) & TEXTJOIN(CHAR(10), TRUE, UNIQUE(QUERY(Policies, "select C where LOWER(B) = \'general access default\'", 0))), TEXTJOIN(CHAR(10), TRUE, UNIQUE(QUERY(Policies, "select C where LOWER(B) = \'general access default\'", 0))))), "/")',
