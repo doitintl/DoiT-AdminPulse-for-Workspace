@@ -609,7 +609,7 @@ function createWorkspaceSecurityChecklistSheet() {
     ],
      "Set a policy for chat file sharing": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'chat file sharing\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat file sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat file sharing\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"/")',
-        '=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = \'chat file sharing\'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) externalFileSharing: ALL_FILES"&CHAR(10)&"internalFileSharing: ALL_FILES"")")'
+        `=IFERROR(TRIM(SUBSTITUTE(JOIN(CHAR(10)&REPT("─", 20)&CHAR(10), QUERY(Policies, "select D where B = 'chat file sharing'", 0)), CHAR(10)&REPT("─", 20)&CHAR(10)&CHAR(10)&REPT("─", 20)&CHAR(10),CHAR(10)&REPT("─", 20)&CHAR(10))), "(Default) externalFileSharing: ALL_FILES"&CHAR(10)&"internalFileSharing: ALL_FILES")`
     ],
      "Set a policy for Chat Apps": [
         '=IFERROR(IF(ROWS(UNIQUE(QUERY(Policies, "select C where B = \'chat apps access\'", 0))) > 1, "OUs with differences" & CHAR(10) & TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat apps access\'", 0)), CHAR(10)&CHAR(10), CHAR(10))), TRIM(SUBSTITUTE(JOIN(CHAR(10), QUERY(Policies, "select C where B = \'chat apps access\'", 0)), CHAR(10)&CHAR(10), CHAR(10)))),"/")',
@@ -717,7 +717,7 @@ function createWorkspaceSecurityChecklistSheet() {
         if (String(formulas[1]).startsWith('=')) {
            sheet.getRange(rowNumber, 6).setFormula(formulas[1]);
         } else {
-           sheet.getRange(rowNumber, 6).setValue(String(formulas[1]).replace(/^"|"$/g, ''));
+           sheet.getRange(rowNumber, 6).setValue(String(formulas[1]).replace(/^['"]|['"]$/g, ''));
         }
       } catch (e) { /* ignore */ }
     }
