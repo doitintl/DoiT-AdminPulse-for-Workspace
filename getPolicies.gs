@@ -7,7 +7,7 @@ const TRIGGER_FUNCTION_NAME = "continuePolicyFetchAndProcess";
 const MAX_RUNTIME_MINUTES = 28;
 
 
-/**
+'''/**
  * Main function. Initializes, runs dependencies, and starts the policy fetch.
  */
 function runFullPolicyCheck() {
@@ -18,65 +18,59 @@ function runFullPolicyCheck() {
     return;
   }
 
-  const startTime = new Date();
-  const ui = SpreadsheetApp.getUi();
-  // --- FIX: Declare 'ss' at the top of the function ---
-  const ss = SpreadsheetApp.getActiveSpreadsheet(); 
-
-  Logger.log(`============================================================`);
-  Logger.log(`▶️ START: Running '${SCRIPT_NAME}' at ${startTime.toLocaleString()}`);
-  Logger.log(`============================================================`);
-
-  deleteTriggers();
-  PropertiesService.getScriptProperties().deleteAllProperties();
-  Logger.log("Cleaned up old triggers and properties for a fresh run.");
-
-  // --- Step 1: Run External Dependency Scripts ---
-  // This script assumes that 'getGroupsSettings' and 'getOrgUnits' functions
-  // exist within this script project and will run correctly.
   try {
-    Logger.log("--- Calling Dependency: getGroupsSettings() ---");
-    // Now this line will work correctly
-    ss.toast('Updating Group data...', SCRIPT_NAME, -1); 
-    SpreadsheetApp.flush();
-    getGroupsSettings();
+    const startTime = new Date();
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActiveSpreadsheet(); 
 
-    Logger.log("--- Calling Dependency: getOrgUnits() ---");
-    // This line will also work correctly
-    ss.toast('Updating OU data...', SCRIPT_NAME, -1);
-    SpreadsheetApp.flush();
-    getOrgUnits();
+    Logger.log(`============================================================`);
+    Logger.log(`▶️ START: Running '${SCRIPT_NAME}' at ${startTime.toLocaleString()}`);
+    Logger.log(`============================================================`);
 
-  } catch (e) {
-    const errorMessage = `A dependency script ('getGroupsSettings' or 'getOrgUnits') failed to run. Error: ${e.message}. The script cannot continue.`;
-    Logger.log(errorMessage + `\nStack: ${e.stack}`);
-    // You can also use the 'ss' variable here for the error toast
-    ss.toast(e.message, '❌ Dependency Error', 30);
-    ui.alert(errorMessage);
-    scriptLock.releaseLock();
-    return;
-  }
-  
-  // --- Step 2: Validate the output of the dependency scripts ---
-  // The 'ss' variable is already defined, so this check works perfectly.
-  if (!ss.getRangeByName('GroupID') || !ss.getRangeByName('OrgID2Path')) {
-      const errorMessage = `VALIDATION FAILED: Required named ranges ('GroupID', 'OrgID2Path') were not found after dependency scripts ran. Please ensure they create these ranges correctly. The script cannot continue.`;
-      Logger.log(errorMessage);
-      ss.toast(errorMessage, '❌ Validation Error', 30);
+    deleteTriggers();
+    PropertiesService.getScriptProperties().deleteAllProperties();
+    Logger.log("Cleaned up old triggers and properties for a fresh run.");
+
+    try {
+      Logger.log("--- Calling Dependency: getGroupsSettings() ---");
+      ss.toast('Updating Group data...', SCRIPT_NAME, -1); 
+      getGroupsSettings();
+      SpreadsheetApp.flush(); // Force the spreadsheet to update
+
+      Logger.log("--- Calling Dependency: getOrgUnits() ---");
+      ss.toast('Updating OU data...', SCRIPT_NAME, -1);
+      getOrgUnits();
+      SpreadsheetApp.flush(); // Force the spreadsheet to update
+
+    } catch (e) {
+      const errorMessage = `A dependency script ('getGroupsSettings' or 'getOrgUnits') failed to run. Error: ${e.message}. The script cannot continue.`;
+      Logger.log(errorMessage + `
+Stack: ${e.stack}`);
+      ss.toast(e.message, '❌ Dependency Error', 30);
       ui.alert(errorMessage);
-      scriptLock.releaseLock();
       return;
-  }
-  
-  Logger.log("✅ All dependency scripts ran and outputs were validated.");
-  ss.toast('Dependencies validated. Starting policy fetch...', SCRIPT_NAME, 10);
-  SpreadsheetApp.flush();
+    }
+    
+    if (!ss.getRangeByName('GroupID') || !ss.getRangeByName('OrgID2Path')) {
+        const errorMessage = `VALIDATION FAILED: Required named ranges ('GroupID', 'OrgID2Path') were not found after dependency scripts ran. Please ensure they create these ranges correctly. The script cannot continue.`;
+        Logger.log(errorMessage);
+        ss.toast(errorMessage, '❌ Validation Error', 30);
+        ui.alert(errorMessage);
+        return;
+    }
+    
+    Logger.log("✅ All dependency scripts ran and outputs were validated.");
+    ss.toast('Dependencies validated. Starting policy fetch...', SCRIPT_NAME, 10);
+    SpreadsheetApp.flush();
 
-  // --- Step 3: Start the main policy fetching process ---
-  PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
-  continuePolicyFetchAndProcess();
-  scriptLock.releaseLock();
-}
+    PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
+    continuePolicyFetchAndProcess();
+
+  } finally {
+    scriptLock.releaseLock();
+    Logger.log("Script lock released.");
+  }
+}''
 
 
 // ---------------------------------------------
