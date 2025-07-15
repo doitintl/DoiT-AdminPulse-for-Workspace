@@ -11,6 +11,13 @@ const MAX_RUNTIME_MINUTES = 28;
  * Main function. Initializes, runs dependencies, and starts the policy fetch.
  */
 function runFullPolicyCheck() {
+  const scriptLock = LockService.getScriptLock();
+  if (!scriptLock.tryLock(1000)) {
+    Logger.log("A policy check is already running. Exiting.");
+    SpreadsheetApp.getActiveSpreadsheet().toast("A policy check is already in progress. Please wait for it to complete.", "Info", 10);
+    return;
+  }
+
   const startTime = new Date();
   const ui = SpreadsheetApp.getUi();
   // --- FIX: Declare 'ss' at the top of the function ---
@@ -46,6 +53,7 @@ function runFullPolicyCheck() {
     // You can also use the 'ss' variable here for the error toast
     ss.toast(e.message, '❌ Dependency Error', 30);
     ui.alert(errorMessage);
+    scriptLock.releaseLock();
     return;
   }
   
@@ -56,6 +64,7 @@ function runFullPolicyCheck() {
       Logger.log(errorMessage);
       ss.toast(errorMessage, '❌ Validation Error', 30);
       ui.alert(errorMessage);
+      scriptLock.releaseLock();
       return;
   }
   
@@ -66,6 +75,7 @@ function runFullPolicyCheck() {
   // --- Step 3: Start the main policy fetching process ---
   PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
   continuePolicyFetchAndProcess();
+  scriptLock.releaseLock();
 }
 
 
