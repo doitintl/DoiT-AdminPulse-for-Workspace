@@ -34,7 +34,7 @@ function listAliases() {
     const headerRange = aliasSheet.getRange(1, 1, 1, 3);
     headerRange.setFontFamily('Montserrat')
       .setFontWeight('bold')
-      .setBackground('#fc3156') // Note: Original was fc3156, you might want #fc3165 to match other sheets
+      .setBackground('#fc3165')
       .setFontColor("#ffffff");
     aliasSheet.setFrozenRows(1);
 
@@ -75,6 +75,8 @@ function listAliases() {
     // Batch update the sheet with the data
     if (data.length > 0) {
       aliasSheet.getRange(aliasSheet.getLastRow() + 1, 1, data.length, data[0].length).setValues(data);
+    } else {
+      aliasSheet.getRange(2, 1).setValue('No aliases found.');
     }
 
     // Format columns
