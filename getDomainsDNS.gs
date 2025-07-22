@@ -254,7 +254,21 @@ function getDnsRecords(domainList) {
 
 
     mxRecords.data = mxRecords.data || "No MX records found";
-    spfRecords.data = ((spfRecords.data || "").match(/^.*v=spf1.*$/gim) || ["No SPF record found"])[0];
+
+    // Filter for SPF records and handle multiple policies.
+    const spfPolicies = (spfRecords.data || "").match(/^.*v=spf1.*$/gim);
+    if (!spfPolicies) {
+      spfRecords.data = "No SPF record found";
+    } else {
+      if (spfPolicies.length > 1) {
+        // If multiple SPF records are found, append a warning to the status.
+        // This is a configuration error that admins should be aware of.
+        spfRecords.status += "; Warning: Multiple SPF records found";
+      }
+      // Join all found SPF records, separated by a newline.
+      spfRecords.data = spfPolicies.join('\n');
+    }
+
     dkimRecords.data = dkimRecords.data || "No DKIM records found";
     dmarcRecords.data = dmarcRecords.data || "No DMARC records found";
 
