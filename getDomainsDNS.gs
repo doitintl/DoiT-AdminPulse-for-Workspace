@@ -58,26 +58,42 @@ function getDomainList() {
     sheet.getRange(2, 4, lastRow - 1, 4).setValues(dnsResults);
 
     //Write the status message to the sheet
-    const statusMessages = dnsResultsWithStatus.map(item => {
-      let overallStatus = "";
-      if (item.mxRecords.status !== "Lookup Complete" ||
-        item.spfRecords.status !== "Lookup Complete" ||
-        item.dkimRecords.status !== "Lookup Complete" ||
-        item.dmarcRecords.status !== "Lookup Complete") {
-        //Something is not complete.
-        let issues = [];
-        if (item.mxRecords.status !== "Lookup Complete") issues.push(`MX: ${item.mxRecords.status}`);
-        if (item.spfRecords.status !== "Lookup Complete") issues.push(`SPF: ${item.spfRecords.status}`);
-        if (item.dkimRecords.status !== "Lookup Complete") issues.push(`DKIM: ${item.dkimRecords.status}`);
-        if (item.dmarcRecords.status !== "Lookup Complete") issues.push(`DMARC: ${item.dmarcRecords.status}`);
-        overallStatus = "Issues Found:\n" + issues.join("\n");
+    const statusCells = sheet.getRange(2, 8, lastRow - 1, 1);
+    const richTextValues = dnsResultsWithStatus.map(item => {
+      let builder = SpreadsheetApp.newRichTextValue();
+      let baseText = "";
+      let warnings = [];
 
-      } else {
-        overallStatus = "Lookup Complete";
+      if (item.spfRecords.status.includes("Warning: Multiple SPF records found")) {
+        warnings.push("Warning: Multiple SPF records found");
       }
-      return [overallStatus];
+
+      if (item.mxRecords.status.startsWith("Lookup Complete") && 
+          item.spfRecords.status.startsWith("Lookup Complete") && 
+          item.dkimRecords.status.startsWith("Lookup Complete") && 
+          item.dmarcRecords.status.startsWith("Lookup Complete")) {
+        baseText = "Lookup Complete";
+      } else {
+        let issues = [];
+        if (!item.mxRecords.status.startsWith("Lookup Complete")) issues.push(`MX: ${item.mxRecords.status.split(";")[0]}`);
+        if (!item.spfRecords.status.startsWith("Lookup Complete")) issues.push(`SPF: ${item.spfRecords.status.split(";")[0]}`);
+        if (!item.dkimRecords.status.startsWith("Lookup Complete")) issues.push(`DKIM: ${item.dkimRecords.status.split(";")[0]}`);
+        if (!item.dmarcRecords.status.startsWith("Lookup Complete")) issues.push(`DMARC: ${item.dmarcRecords.status.split(";")[0]}`);
+        baseText = "Issues Found:\n" + issues.join("\n");
+      }
+
+      builder.setText(baseText);
+
+      if (warnings.length > 0) {
+        let warningText = "\n" + warnings.join("\n");
+        let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build();
+        builder.setText(baseText + warningText);
+        builder.setTextStyle(baseText.length, baseText.length + warningText.length, boldStyle);
+      }
+      
+      return [builder.build()];
     });
-    sheet.getRange(2, 8, lastRow - 1, 1).setValues(statusMessages);
+    statusCells.setRichTextValues(richTextValues);
 
 
     // Delete columns I-Z
