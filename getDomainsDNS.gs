@@ -244,10 +244,6 @@ function getDnsRecords(domainList) {
     Utilities.sleep(delayBetweenCalls);
 
     let spfRecords = performGoogleDNSLookup("TXT", domain);
-    // Use regex to extract the first line containing 'v=spf1' (case-insensitive)
-    if (spfRecords.data) {
-      spfRecords.data = (spfRecords.data.match(/^.*v=spf1.*$/gim) || ["No SPF record found"])[0];
-    }
     Utilities.sleep(delayBetweenCalls);
 
     let dkimRecords = performGoogleDNSLookup("TXT", "google._domainkey." + domain);
@@ -258,7 +254,7 @@ function getDnsRecords(domainList) {
 
 
     mxRecords.data = mxRecords.data || "No MX records found";
-    spfRecords.data = spfRecords.data || "No SPF records found";
+    spfRecords.data = ((spfRecords.data || "").match(/^.*v=spf1.*$/gim) || ["No SPF record found"])[0];
     dkimRecords.data = dkimRecords.data || "No DKIM records found";
     dmarcRecords.data = dmarcRecords.data || "No DMARC records found";
 
