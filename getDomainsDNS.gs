@@ -244,6 +244,10 @@ function getDnsRecords(domainList) {
     Utilities.sleep(delayBetweenCalls);
 
     let spfRecords = performGoogleDNSLookup("TXT", domain);
+    // Use regex to extract the first line containing 'v=spf1' (case-insensitive)
+    if (spfRecords.data) {
+      spfRecords.data = (spfRecords.data.match(/^.*v=spf1.*$/gim) || ["No SPF record found"])[0];
+    }
     Utilities.sleep(delayBetweenCalls);
 
     let dkimRecords = performGoogleDNSLookup("TXT", "google._domainkey." + domain);
