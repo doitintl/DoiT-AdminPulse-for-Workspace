@@ -30,7 +30,7 @@ function getDomainList() {
       .setBackground("#fc3165")
       .setFontWeight("bold");
     sheet.getRange("D1").setNote("Mail Exchange, Green cells indicate Google MX records were found.");
-    sheet.getRange("E1").setNote("Sender Policy Framework, Green cells indicate Google SPF record was found.");
+    sheet.getRange("E1").setNote("Sender Policy Framework, Green cells indicate Google SPF record was found. Red cells indicate multiple SPF records were found, or no records found.");
     sheet.getRange("F1").setNote("DomainKeys Identified Mail, Green cells indicate the default DKIM selector for Google was found.");
     sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance, Green cells indicate DMARC records were found.");
     sheet.getRange("H1").setNote("Status of DNS Lookups");
@@ -58,26 +58,42 @@ function getDomainList() {
     sheet.getRange(2, 4, lastRow - 1, 4).setValues(dnsResults);
 
     //Write the status message to the sheet
-    const statusMessages = dnsResultsWithStatus.map(item => {
-      let overallStatus = "";
-      if (item.mxRecords.status !== "Lookup Complete" ||
-        item.spfRecords.status !== "Lookup Complete" ||
-        item.dkimRecords.status !== "Lookup Complete" ||
-        item.dmarcRecords.status !== "Lookup Complete") {
-        //Something is not complete.
-        let issues = [];
-        if (item.mxRecords.status !== "Lookup Complete") issues.push(`MX: ${item.mxRecords.status}`);
-        if (item.spfRecords.status !== "Lookup Complete") issues.push(`SPF: ${item.spfRecords.status}`);
-        if (item.dkimRecords.status !== "Lookup Complete") issues.push(`DKIM: ${item.dkimRecords.status}`);
-        if (item.dmarcRecords.status !== "Lookup Complete") issues.push(`DMARC: ${item.dmarcRecords.status}`);
-        overallStatus = "Issues Found:\n" + issues.join("\n");
+    const statusCells = sheet.getRange(2, 8, lastRow - 1, 1);
+    const richTextValues = dnsResultsWithStatus.map(item => {
+      let builder = SpreadsheetApp.newRichTextValue();
+      let baseText = "";
+      let warnings = [];
 
-      } else {
-        overallStatus = "Lookup Complete";
+      if (item.spfRecords.status.includes("Warning: Multiple SPF records found")) {
+        warnings.push("Warning: Multiple SPF records found");
       }
-      return [overallStatus];
+
+      if (item.mxRecords.status.startsWith("Lookup Complete") && 
+          item.spfRecords.status.startsWith("Lookup Complete") && 
+          item.dkimRecords.status.startsWith("Lookup Complete") && 
+          item.dmarcRecords.status.startsWith("Lookup Complete")) {
+        baseText = "Lookup Complete";
+      } else {
+        let issues = [];
+        if (!item.mxRecords.status.startsWith("Lookup Complete")) issues.push(`MX: ${item.mxRecords.status.split(";")[0]}`);
+        if (!item.spfRecords.status.startsWith("Lookup Complete")) issues.push(`SPF: ${item.spfRecords.status.split(";")[0]}`);
+        if (!item.dkimRecords.status.startsWith("Lookup Complete")) issues.push(`DKIM: ${item.dkimRecords.status.split(";")[0]}`);
+        if (!item.dmarcRecords.status.startsWith("Lookup Complete")) issues.push(`DMARC: ${item.dmarcRecords.status.split(";")[0]}`);
+        baseText = "Issues Found:\n" + issues.join("\n");
+      }
+
+      builder.setText(baseText);
+
+      if (warnings.length > 0) {
+        let warningText = "\n" + warnings.join("\n");
+        let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build();
+        builder.setText(baseText + warningText);
+        builder.setTextStyle(baseText.length, baseText.length + warningText.length, boldStyle);
+      }
+      
+      return [builder.build()];
     });
-    sheet.getRange(2, 8, lastRow - 1, 1).setValues(statusMessages);
+    statusCells.setRichTextValues(richTextValues);
 
 
     // Delete columns I-Z
@@ -104,6 +120,16 @@ function getDomainList() {
 
     // Apply conditional formatting rules
     const rules = [];
+
+    // Rule for multiple SPF records
+    const spfColumnRange = sheet.getRange(`E2:E${lastRow}`);
+    const multipleSpfRule = SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=ISNUMBER(SEARCH("Warning: Multiple SPF records found", H2))')
+      .setBackground("#ffb6c1")
+      .setRanges([spfColumnRange])
+      .build();
+    rules.push(multipleSpfRule);
+
     const ranges = {
         D: "google",
         E: "_spf.google.com",
@@ -129,6 +155,7 @@ function getDomainList() {
 
         rules.push(greenRule, redRule);
     }
+
     sheet.setConditionalFormatRules(rules);
 
     // --- Add Filter View ---
@@ -254,7 +281,21 @@ function getDnsRecords(domainList) {
 
 
     mxRecords.data = mxRecords.data || "No MX records found";
-    spfRecords.data = spfRecords.data || "No SPF records found";
+
+    // Filter for SPF records and handle multiple policies.
+    const spfPolicies = (spfRecords.data || "").match(/^.*v=spf1.*$/gim);
+    if (!spfPolicies) {
+      spfRecords.data = "No SPF record found";
+    } else {
+      if (spfPolicies.length > 1) {
+        // If multiple SPF records are found, append a warning to the status.
+        // This is a configuration error that admins should be aware of.
+        spfRecords.status += "; Warning: Multiple SPF records found";
+      }
+      // Join all found SPF records, separated by a newline.
+      spfRecords.data = spfPolicies.join('\n');
+    }
+
     dkimRecords.data = dkimRecords.data || "No DKIM records found";
     dmarcRecords.data = dmarcRecords.data || "No DMARC records found";
 
