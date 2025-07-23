@@ -30,7 +30,7 @@ function getDomainList() {
       .setBackground("#fc3165")
       .setFontWeight("bold");
     sheet.getRange("D1").setNote("Mail Exchange, Green cells indicate Google MX records were found.");
-    sheet.getRange("E1").setNote("Sender Policy Framework, Green cells indicate Google SPF record was found.");
+    sheet.getRange("E1").setNote("Sender Policy Framework, Green cells indicate Google SPF record was found. Red cells indicate multiple SPF records were found, or no records found.");
     sheet.getRange("F1").setNote("DomainKeys Identified Mail, Green cells indicate the default DKIM selector for Google was found.");
     sheet.getRange("G1").setNote("Domain-based Message Authentication, Reporting, and Conformance, Green cells indicate DMARC records were found.");
     sheet.getRange("H1").setNote("Status of DNS Lookups");
@@ -120,6 +120,16 @@ function getDomainList() {
 
     // Apply conditional formatting rules
     const rules = [];
+
+    // Rule for multiple SPF records
+    const spfColumnRange = sheet.getRange(`E2:E${lastRow}`);
+    const multipleSpfRule = SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=ISNUMBER(SEARCH("Warning: Multiple SPF records found", H2))')
+      .setBackground("#ffb6c1")
+      .setRanges([spfColumnRange])
+      .build();
+    rules.push(multipleSpfRule);
+
     const ranges = {
         D: "google",
         E: "_spf.google.com",
@@ -145,6 +155,7 @@ function getDomainList() {
 
         rules.push(greenRule, redRule);
     }
+
     sheet.setConditionalFormatRules(rules);
 
     // --- Add Filter View ---
