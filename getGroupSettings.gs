@@ -1,6 +1,14 @@
 /**
- * This script lists all Google Groups and their associated Group Settings to a Google Sheet, including the Group ID.
- * This version includes performance logging, rate-limiting, and robust error handling.
+ * This script lists all Google Groups and their associated Group Settings to a Google Sheet.
+ * It is designed to handle large environments by using batch processing and triggers
+ * to avoid exceeding Google Apps Script's execution time limits.
+ */
+
+const GROUP_SETTINGS_BATCH_SIZE = 250; // Number of groups to process in each execution
+
+/**
+ * Main function to start the group settings inventory process.
+ * This function should be run to kick off the process.
  */
 function getGroupsSettings() {
   const functionName = 'getGroupsSettings';
@@ -8,119 +16,184 @@ function getGroupsSettings() {
   Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
 
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    let groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+    // Clear previous script properties to ensure a fresh start
+    PropertiesService.getScriptProperties().deleteProperty('groupSettingsStatus');
+    PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'running');
 
-    if (groupSettingsSheet) {
-      spreadsheet.deleteSheet(groupSettingsSheet);
-    }
-    groupSettingsSheet = spreadsheet.insertSheet("Group Settings", spreadsheet.getNumSheets());
+    const groupEmails = [];
+    let nextPageToken = "";
 
-    const headers = [
-      "ID", "name", "email", "description", "whoCanJoin", "whoCanPostMessage", "whoCanViewMembership",
-      "whoCanViewGroup", "whoCanDiscoverGroup", "allowExternalMembers", "allowWebPosting", "primaryLanguage",
-      "isArchived", "archiveOnly", "messageModerationLevel", "spamModerationLevel", "replyTo",
-      "customReplyTo", "includeCustomFooter", "customFooterText", "sendMessageDenyNotification",
-      "defaultMessageDenyNotificationText", "membersCanPostAsTheGroup", "includeInGlobalAddressList",
-      "whoCanLeaveGroup", "whoCanContactOwner", "favoriteRepliesOnTop", "whoCanBanUsers", "whoCanModerateMembers",
-      "whoCanModerateContent", "whoCanAssistContent", "customRolesEnabledForSettingsToBeMerged",
-      "enableCollaborativeInbox", "defaultSender",
-    ];
-    groupSettingsSheet.getRange(1, 1, 1, headers.length).setValues([headers])
-      .setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight("bold").setFontColor("#ffffff");
-    groupSettingsSheet.setFrozenRows(1);
-    groupSettingsSheet.setFrozenColumns(2);
-    groupSettingsSheet.hideColumns(1); // Hide Column A (ID)
+    try {
+      do {
+        const page = AdminDirectory.Groups.list({
+          customer: 'my_customer',
+          maxResults: 100,
+          pageToken: nextPageToken,
+          orderBy: 'email'
+        });
+        const groups = page.groups;
 
-    // Notes are set once during sheet setup
-    _addGroupSettingsHeaderNotes(groupSettingsSheet);
-
-    // --- DATA FETCHING ---
-    const allRows = [];
-    let pageToken;
-    do {
-      const page = AdminDirectory.Groups.list({
-        pageToken: pageToken,
-        customer: "my_customer",
-        orderBy: "email",
-        sortOrder: "ASCENDING",
-      });
-      if (page.groups && page.groups.length > 0) {
-        for (const group of page.groups) {
-          Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits.
-          try {
-            const settings = AdminGroupSettings.Groups.get(group.email);
-            allRows.push([
-              group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
-              settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
-              settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
-              settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
-              settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
-              settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
-              settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
-              settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
-              settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
-            ]);
-          } catch (e) {
-            Logger.log(`Could not fetch settings for group ${group.email}. Error: ${e.message}`);
-          }
+        if (groups) {
+          groups.forEach((group) => {
+            groupEmails.push(group.email);
+          });
         }
-      }
-      pageToken = page.nextPageToken;
-    } while (pageToken);
-
-    // --- DATA WRITING AND FORMATTING ---
-    if (allRows.length > 0) {
-      groupSettingsSheet.getRange(2, 1, allRows.length, headers.length).setValues(allRows);
-      
-      const lastRow = groupSettingsSheet.getLastRow();
-
-      // Apply Conditional Formatting
-      _applyGroupSettingsConditionalFormatting(groupSettingsSheet);
-
-      // Create Named Range
-      if (spreadsheet.getRangeByName('GroupID')) {
-        spreadsheet.removeNamedRange('GroupID');
-      }
-      const dataRowCount = Math.max(1, lastRow - 1);
-      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + (dataRowCount + 1)));
-
-      // Apply Filter
-      const dataRange = groupSettingsSheet.getDataRange();
-      if (dataRange.getFilter()) dataRange.getFilter().remove();
-      dataRange.createFilter();
-
-      // Auto-resize columns
-      groupSettingsSheet.autoResizeColumn(2);
-      groupSettingsSheet.autoResizeColumn(3);
-
-    } else {
-      groupSettingsSheet.getRange("A2").setValue("No groups found.");
-      // Ensure the named range is still created even if there are no groups
-      if (spreadsheet.getRangeByName('GroupID')) {
-        spreadsheet.removeNamedRange('GroupID');
-      }
-      spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C2"));
+        nextPageToken = page.nextPageToken || "";
+      } while (nextPageToken);
+    } catch (error) {
+      Logger.log(`!! ERROR in ${functionName} (Listing Groups): ${error.message}`);
+      Logger.log(`!! Error details: ${JSON.stringify(error)}`);
+      throw new Error(`Failed to retrieve groups. Check permissions and API availability. ${error.message}`);
     }
-    
+
+    // Store the list of groups and the starting index in script properties
+    const properties = PropertiesService.getScriptProperties();
+    properties.setProperty('groupEmailsForSettings', JSON.stringify(groupEmails));
+    properties.setProperty('currentIndexForSettings', '0');
+    properties.setProperty('startTimeForSettings', startTime.getTime());
+
+    // Setup the spreadsheet
+    setupGroupSettingsSheet();
+
+    // Start the batch processing
+    processGroupSettingsBatch();
+
+  } catch (error) {
+    Logger.log(`!! FATAL ERROR in ${functionName}: ${error.toString()}`);
+    SpreadsheetApp.getUi().alert(`A critical error occurred while fetching data in ${functionName}. Check the logs for details.`);
+  }
+}
+
+/**
+ * Sets up the "Group Settings" spreadsheet.
+ */
+function setupGroupSettingsSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+
+  if (groupSettingsSheet) {
+    spreadsheet.deleteSheet(groupSettingsSheet);
+  }
+  groupSettingsSheet = spreadsheet.insertSheet("Group Settings", spreadsheet.getNumSheets());
+
+  const headers = [
+    "ID", "name", "email", "description", "whoCanJoin", "whoCanPostMessage", "whoCanViewMembership",
+    "whoCanViewGroup", "whoCanDiscoverGroup", "allowExternalMembers", "allowWebPosting", "primaryLanguage",
+    "isArchived", "archiveOnly", "messageModerationLevel", "spamModerationLevel", "replyTo",
+    "customReplyTo", "includeCustomFooter", "customFooterText", "sendMessageDenyNotification",
+    "defaultMessageDenyNotificationText", "membersCanPostAsTheGroup", "includeInGlobalAddressList",
+    "whoCanLeaveGroup", "whoCanContactOwner", "favoriteRepliesOnTop", "whoCanBanUsers", "whoCanModerateMembers",
+    "whoCanModerateContent", "whoCanAssistContent", "customRolesEnabledForSettingsToBeMerged",
+    "enableCollaborativeInbox", "defaultSender",
+  ];
+  groupSettingsSheet.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setFontFamily("Montserrat").setBackground("#fc3165").setFontWeight("bold").setFontColor("#ffffff");
+  groupSettingsSheet.setFrozenRows(1);
+  groupSettingsSheet.setFrozenColumns(2);
+  groupSettingsSheet.hideColumns(1); // Hide Column A (ID)
+
+  _addGroupSettingsHeaderNotes(groupSettingsSheet);
+}
+
+/**
+ * Processes a batch of groups to fetch their settings.
+ */
+function processGroupSettingsBatch() {
+  const functionName = 'processGroupSettingsBatch';
+  const properties = PropertiesService.getScriptProperties();
+  const groupEmails = JSON.parse(properties.getProperty('groupEmailsForSettings'));
+  let currentIndex = parseInt(properties.getProperty('currentIndexForSettings'), 10);
+  const startTime = new Date(parseInt(properties.getProperty('startTimeForSettings'), 10));
+
+  const allRows = [];
+  const groupsToProcess = groupEmails.slice(currentIndex, currentIndex + GROUP_SETTINGS_BATCH_SIZE);
+
+  for (const groupEmail of groupsToProcess) {
+    Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits. 
+    try {
+      const group = AdminDirectory.Groups.get(groupEmail)
+      const settings = AdminGroupSettings.Groups.get(groupEmail);
+      allRows.push([
+        group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
+        settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
+        settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
+        settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
+        settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
+        settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
+        settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
+        settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
+        settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
+      ]);
+    } catch (e) {
+      Logger.log(`Could not fetch settings for group ${groupEmail}. Error: ${e.message}`);
+    }
+  }
+
+  if (allRows.length > 0) {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+    groupSettingsSheet.getRange(groupSettingsSheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
+  }
+
+  currentIndex += GROUP_SETTINGS_BATCH_SIZE;
+  properties.setProperty('currentIndexForSettings', currentIndex.toString());
+
+  if (currentIndex < groupEmails.length) {
+    TriggerService.createTrigger('processGroupSettingsBatch', 1);
+  } else {
+    finalizeGroupSettingsSheet();
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
+    Logger.log(`-- Finished getGroupsSettings at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
+    PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'completed');
+    _continueAfterGroups();
+  }
+}
+
+/**
+ * Finalizes the "Group Settings" sheet after all groups have been processed.
+ */
+function finalizeGroupSettingsSheet() {
+  const functionName = 'finalizeGroupSettingsSheet';
+  Logger.log(`-- Starting ${functionName}`);
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+
+    if (groupSettingsSheet.getLastRow() === 1) {
+      groupSettingsSheet.getRange("A2").setValue("No groups found.");
+      return;
+    }
+
+    _applyGroupSettingsConditionalFormatting(groupSettingsSheet);
+
+    const lastRow = groupSettingsSheet.getLastRow();
+    if (spreadsheet.getRangeByName('GroupID')) {
+      spreadsheet.removeNamedRange('GroupID');
+    }
+    const dataRowCount = Math.max(1, lastRow - 1);
+    spreadsheet.setNamedRange("GroupID", groupSettingsSheet.getRange("A2:C" + (dataRowCount + 1)));
+
+    const dataRange = groupSettingsSheet.getDataRange();
+    if (dataRange.getFilter()) dataRange.getFilter().remove();
+    dataRange.createFilter();
+
+    groupSettingsSheet.autoResizeColumn(2);
+    groupSettingsSheet.autoResizeColumn(3);
+
+    const headers = groupSettingsSheet.getRange(1, 1, 1, groupSettingsSheet.getLastColumn()).getValues()[0];
     if (groupSettingsSheet.getMaxColumns() > headers.length) {
       groupSettingsSheet.deleteColumns(headers.length + 1, groupSettingsSheet.getMaxColumns() - headers.length);
     }
 
   } catch (e) {
     Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
-    SpreadsheetApp.getUi().alert(`An error occurred in ${functionName}: ${e.message}`);
-  } finally {
-    const endTime = new Date();
-    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
-    Logger.log(`-- Finished ${functionName} at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
   }
 }
 
 /**
  * Helper function to apply all conditional formatting rules to the Group Settings sheet.
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet The target sheet.
- * @param {number} lastRow The last row with data.
  * @private
  */
 function _applyGroupSettingsConditionalFormatting(sheet) {
@@ -239,3 +312,15 @@ function _addGroupSettingsHeaderNotes(sheet) {
     sheet.getRange(cell).setNote(notes[cell]);
   }
 }
+
+/**
+ * A simple trigger service to create a trigger for the next batch execution.
+ */
+const TriggerService = {
+  createTrigger: (functionName, delayInSeconds) => {
+    ScriptApp.newTrigger(functionName)
+      .timeBased()
+      .after(delayInSeconds * 1000)
+      .create();
+  }
+};

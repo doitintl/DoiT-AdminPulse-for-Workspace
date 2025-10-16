@@ -121,7 +121,7 @@ function getOrgUnits() {
     }
   } catch (e) {
     Logger.log(`!! ERROR in ${functionName}: ${e.toString()}`);
-    SpreadsheetApp.getUi().alert(`An error occurred in ${functionName}: ${e.message}`);
+    throw e; // Re-throw the error to be caught by the calling function
   } finally {
     const endTime = new Date();
     const duration = (endTime.getTime() - startTime.getTime()) / 1000;

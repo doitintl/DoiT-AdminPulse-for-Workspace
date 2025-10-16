@@ -1,148 +1,196 @@
 /**
- * Inventories all configured App Passwords from all users across ALL DOMAINS in the organization.
- * Displays user email on the sheet but logs only the user ID for privacy.
- * Provides UI feedback during execution.
+ * @fileoverview Inventories all App Passwords from all users.
+ * This script is designed to handle very large Google Workspace environments by using a highly
+ * scalable batch processing pattern. It processes users page by page, using time-based
+ * triggers to avoid exceeding script execution time limits, without ever needing to store the
+ * full user list in memory or properties.
+ */
+
+// --- Configuration ---
+const APP_PASSWORDS_SHEET_NAME = "App Passwords";
+const APP_PASSWORDS_USER_PAGE_SIZE = 200; // Number of users to fetch in each page/batch.
+const APP_PASSWORDS_TRIGGER_FUNCTION = "processAppPasswordBatch";
+
+/**
+ * Main function to be run from the menu.
+ * Kicks off the App Password inventory process.
  */
 function getAppPasswords() {
   const functionName = 'getAppPasswords';
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const ui = SpreadsheetApp.getUi(); 
   const startTime = new Date();
   Logger.log(`-- Starting ${functionName} at: ${startTime.toLocaleString()}`);
-
-  spreadsheet.toast(
-    'Processing... This may take several minutes.',
-    'Starting App Password Audit',
-    -1 // Indefinite duration
-  );
+  
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  spreadsheet.toast('Starting App Password inventory...', 'Setup', 10);
 
   try {
-    const sheetName = "App Passwords";
-    let appPasswordsSheet = spreadsheet.getSheetByName(sheetName);
+    // 1. Clean up from any previous runs
+    _deleteTriggersByName(APP_PASSWORDS_TRIGGER_FUNCTION);
+    const scriptProperties = PropertiesService.getScriptProperties();
+    scriptProperties.deleteProperty('appPasswords_userPageToken');
+    scriptProperties.setProperty('appPasswords_startTime', startTime.getTime());
 
-    if (!appPasswordsSheet) {
-      appPasswordsSheet = spreadsheet.insertSheet(sheetName, 0);
-    } else {
-      const oldFilter = appPasswordsSheet.getFilter();
-      if (oldFilter) {
-        oldFilter.remove();
-      }
-      appPasswordsSheet.clear();
-    }
-
-    const headers = ["CodeID", "Name", "Creation Time", "Last Time Used", "User"];
-    const headerRange = appPasswordsSheet.getRange(1, 1, 1, headers.length);
-    headerRange.setValues([headers])
-      .setFontFamily("Montserrat")
-      .setBackground("#fc3165")
-      .setFontColor("white")
-      .setFontWeight("bold");
-    appPasswordsSheet.setFrozenRows(1);
-
-    let pageToken = null;
-    let allPasswordsData = [];
-
-    let pageNumber = 1;
-    do {
-      spreadsheet.toast(`Fetching user page ${pageNumber}...`, 'Processing...do not close or edit the sheet App Passwords page.', -1);
-      
-      // MODIFICATION: The 'domain' parameter has been removed from this API call.
-      // Using only 'customer: "my_customer"' fetches users from all domains.
-      const response = AdminDirectory.Users.list({
-        customer: "my_customer",
-        maxResults: 100,
-        projection: "basic",
-        viewType: "admin_view",
-        orderBy: "email",
-        pageToken: pageToken,
-      });
-
-      if (response.users && response.users.length > 0) {
-        response.users.forEach(function(user) {
-          Utilities.sleep(250);
-          try {
-            const asps = AdminDirectory.Asps.list(user.id);
-            if (asps && asps.items) {
-              asps.items.forEach(function(asp) {
-                allPasswordsData.push([
-                  asp.codeId,
-                  asp.name,
-                  formatTimestamp(asp.creationTime),
-                  asp.lastTimeUsed ? formatTimestamp(asp.lastTimeUsed) : "Never Used",
-                  user.primaryEmail, 
-                ]);
-              });
-            }
-          } catch (err) {
-            Logger.log(`Could not process App Passwords for user ID ${user.id}. Error: ${err.message}`);
-          }
-        });
-      }
-      pageToken = response.nextPageToken;
-      pageNumber++;
-    } while (pageToken);
-
-    if (allPasswordsData.length > 0) {
-      spreadsheet.toast('Writing data to sheet...', 'Processing...', -1);
-      appPasswordsSheet.getRange(2, 1, allPasswordsData.length, headers.length).setValues(allPasswordsData);
-
-      const lastRow = appPasswordsSheet.getLastRow();
-
-      for (let i = 1; i <= headers.length; i++) {
-        appPasswordsSheet.autoResizeColumn(i);
-      }
-      
-      appPasswordsSheet.getRange(1, 1, lastRow, headers.length).createFilter();
-
-      const neverUsedRange = appPasswordsSheet.getRange("D2:D" + lastRow);
-      const neverUsedRule = SpreadsheetApp.newConditionalFormatRule()
-        .whenTextEqualTo("Never Used")
-        .setBackground("#f4cccc")
-        .setRanges([neverUsedRange])
-        .build();
-      const rules = appPasswordsSheet.getConditionalFormatRules();
-      rules.push(neverUsedRule);
-      appPasswordsSheet.setConditionalFormatRules(rules);
-
-    } else {
-      appPasswordsSheet.getRange("A2").setValue("No App Passwords found in the domain.");
-    }
-
-    const maxCols = appPasswordsSheet.getMaxColumns();
-    if (maxCols > headers.length) {
-      appPasswordsSheet.deleteColumns(headers.length + 1, maxCols - headers.length);
-    }
-    const maxRows = appPasswordsSheet.getMaxRows();
-    const finalLastRow = appPasswordsSheet.getLastRow();
-    if (maxRows > finalLastRow) {
-      appPasswordsSheet.deleteRows(finalLastRow + 1, maxRows - finalLastRow);
-    }
-    // Log the successful completion of the function.
-    const endTime = new Date();
-    const duration = (endTime.getTime() - startTime.getTime()) / 1000; // duration in seconds
-    Logger.log(`-- Successfully completed ${functionName} at: ${endTime.toLocaleString()}. Total duration: ${duration.toFixed(2)} seconds.`);
+    // 2. Set up the spreadsheet
+    _setupAppPasswordsSheet();
     
-    spreadsheet.toast('Audit complete!', 'Success!', 10);
-    
-    const alertMessage = "The App Password inventory is complete.\n\n" +
-      "IMPORTANT: App Passwords are 16-digit passcodes that grant access to an account. They are a security risk because they bypass 2-Step Verification (2SV).\n\n" +
-      "Review any unfamiliar or old entries. Rows highlighted for 'Never Used' indicates the password was never used by an app to authenticate to Google services.";
-
-    ui.alert('Audit Summary & Security Warning', alertMessage, ui.ButtonSet.OK);
+    // 3. Start the first batch
+    spreadsheet.toast('Starting first batch of users...', 'Processing', 10);
+    processAppPasswordBatch();
 
   } catch (e) {
     Logger.log(`!! FATAL ERROR in ${functionName}: ${e.toString()}\n${e.stack}`);
-    spreadsheet.toast('An error occurred. Check logs.', 'Error!', 15);
+    SpreadsheetApp.getUi().alert(`A critical error occurred during setup: ${e.message}. Please check the logs.`);
+  }
+}
 
-    if (e.message.includes("User does not have credentials to perform this operation")) {
-      ui.alert(
-        'Insufficient Permissions',
-        'This script must be run by a Super Administrator to view App Passwords for all users.',
-        ui.ButtonSet.OK
-      );
-    } else {
-      ui.alert('An unexpected error occurred. Please check the script execution logs for details.');
+/**
+ * Processes a batch of users to fetch their App Passwords.
+ * This function fetches a single page of users from the Admin SDK, processes them,
+ * and then triggers itself for the next page.
+ */
+function processAppPasswordBatch() {
+  const functionName = APP_PASSWORDS_TRIGGER_FUNCTION;
+  const scriptProperties = PropertiesService.getScriptProperties();
+  
+  try {
+    const pageToken = scriptProperties.getProperty('appPasswords_userPageToken');
+    Logger.log(`Processing user page with token: ${pageToken || ' (first page)'}`);
+
+    // 1. Fetch a single page of users
+    const userPage = AdminDirectory.Users.list({
+      customer: "my_customer",
+      maxResults: APP_PASSWORDS_USER_PAGE_SIZE,
+      projection: "basic",
+      viewType: "admin_view",
+      orderBy: "email",
+      fields: "nextPageToken,users(id,primaryEmail)",
+      pageToken: pageToken,
+    });
+
+    let allPasswordsData = [];
+    if (userPage.users && userPage.users.length > 0) {
+      Logger.log(`Processing batch of ${userPage.users.length} users.`);
+      // 2. Process app passwords for the fetched users
+      userPage.users.forEach((user) => {
+        Utilities.sleep(250); // Prevent hitting API rate limits
+        try {
+          const asps = AdminDirectory.Asps.list(user.id);
+          if (asps && asps.items) {
+            asps.items.forEach((asp) => {
+              allPasswordsData.push([
+                asp.codeId,
+                asp.name,
+                _formatTimestamp(asp.creationTime),
+                asp.lastTimeUsed ? _formatTimestamp(asp.lastTimeUsed) : "Never Used",
+                user.primaryEmail,
+              ]);
+            });
+          }
+        } catch (err) {
+          Logger.log(`Could not process App Passwords for user ID ${user.id}. Error: ${err.message}`);
+        }
+      });
     }
+
+    // 3. Write the collected data for this batch to the sheet
+    if (allPasswordsData.length > 0) {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APP_PASSWORDS_SHEET_NAME);
+      sheet.getRange(sheet.getLastRow() + 1, 1, allPasswordsData.length, allPasswordsData[0].length).setValues(allPasswordsData);
+    }
+
+    // 4. Check if there is a next page and trigger the next run
+    const nextPageToken = userPage.nextPageToken;
+    if (nextPageToken) {
+      scriptProperties.setProperty('appPasswords_userPageToken', nextPageToken);
+      _createTrigger(APP_PASSWORDS_TRIGGER_FUNCTION, 5);
+      Logger.log(`Batch complete. Trigger created for next user page.`);
+    } else {
+      // 5. No more pages, finalize the process
+      Logger.log("All user pages have been processed. Finalizing sheet.");
+      _finalizeAppPasswordsSheet();
+      
+      // Clean up properties
+      scriptProperties.deleteProperty('appPasswords_userPageToken');
+      
+      const totalStartTime = new Date(parseInt(scriptProperties.getProperty('appPasswords_startTime'), 10));
+      const totalEndTime = new Date();
+      const totalDuration = (totalEndTime.getTime() - totalStartTime.getTime()) / 1000;
+      Logger.log(`-- Successfully completed App Password inventory at: ${totalEndTime.toLocaleString()}. Total duration: ${totalDuration.toFixed(2)} seconds.`);
+    }
+  } catch (e) {
+    Logger.log(`!! FATAL ERROR in ${functionName}: ${e.toString()}\n${e.stack}`);
+    _deleteTriggersByName(APP_PASSWORDS_TRIGGER_FUNCTION);
+  }
+}
+
+
+// --- Helper Functions (Setup, Finalization, Formatting) ---
+
+/**
+ * Sets up the initial state of the "App Passwords" sheet.
+ * @private
+ */
+function _setupAppPasswordsSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(APP_PASSWORDS_SHEET_NAME);
+
+  if (sheet) {
+    sheet.clear();
+    spreadsheet.deleteSheet(sheet);
+  }
+  
+  sheet = spreadsheet.insertSheet(APP_PASSWORDS_SHEET_NAME, 0);
+
+  const headers = ["CodeID", "Name", "Creation Time", "Last Time Used", "User"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setFontFamily("Montserrat")
+    .setBackground("#fc3165")
+    .setFontColor("white")
+    .setFontWeight("bold");
+  sheet.setFrozenRows(1);
+}
+
+/**
+ * Applies final formatting and cleanup to the sheet.
+ * @private
+ */
+function _finalizeAppPasswordsSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APP_PASSWORDS_SHEET_NAME);
+  if (sheet.getLastRow() <= 1) {
+    sheet.getRange("A2").setValue("No App Passwords found in the domain.");
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+
+  // Create filter
+  sheet.getRange(1, 1, lastRow, lastCol).createFilter();
+
+  // Add conditional formatting for "Never Used"
+  const neverUsedRange = sheet.getRange("D2:D" + lastRow);
+  const neverUsedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Never Used")
+    .setBackground("#f4cccc")
+    .setRanges([neverUsedRange])
+    .build();
+  const rules = sheet.getConditionalFormatRules();
+  rules.push(neverUsedRule);
+  sheet.setConditionalFormatRules(rules);
+
+  // Auto-resize columns
+  for (let i = 1; i <= lastCol; i++) {
+    sheet.autoResizeColumn(i);
+  }
+  
+  // Clean up extra rows/columns
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols > lastCol) {
+    sheet.deleteColumns(lastCol + 1, maxCols - lastCol);
+  }
+  const maxRows = sheet.getMaxRows();
+  if (maxRows > lastRow) {
+    sheet.deleteRows(lastRow + 1, maxRows - lastRow);
   }
 }
 
@@ -150,8 +198,9 @@ function getAppPasswords() {
  * Formats a Unix timestamp string into a human-readable date.
  * @param {string} timestampString A string representing milliseconds since epoch.
  * @returns {string} The formatted date string or a status message.
+ * @private
  */
-function formatTimestamp(timestampString) {
+function _formatTimestamp(timestampString) {
   if (!timestampString || timestampString === "0") {
     return "Never Used";
   }
@@ -161,4 +210,36 @@ function formatTimestamp(timestampString) {
   }
   const date = new Date(timestamp);
   return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+}
+
+// --- Generic Trigger Management ---
+
+/**
+ * Deletes all script triggers with a specific handler function name.
+ * @param {string} functionName The name of the handler function for the triggers to delete.
+ * @private
+ */
+function _deleteTriggersByName(functionName) {
+  try {
+    ScriptApp.getProjectTriggers().forEach(trigger => {
+      if (trigger.getHandlerFunction() === functionName) {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+  } catch (e) {
+    Logger.log(`Error deleting triggers: ${e.message}`);
+  }
+}
+
+/**
+ * Creates a time-based trigger to run a function after a short delay.
+ * @param {string} functionName The name of the function to trigger.
+ * @param {number} delayInSeconds The delay in seconds before the trigger runs.
+ * @private
+ */
+function _createTrigger(functionName, delayInSeconds) {
+  ScriptApp.newTrigger(functionName)
+    .timeBased()
+    .after(delayInSeconds * 1000)
+    .create();
 }

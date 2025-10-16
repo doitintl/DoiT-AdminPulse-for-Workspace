@@ -7,69 +7,58 @@ const TRIGGER_FUNCTION_NAME = "continuePolicyFetchAndProcess";
 const MAX_RUNTIME_MINUTES = 28;
 
 
+
+
+
 /**
  * Main function. Initializes, runs dependencies, and starts the policy fetch.
  */
 function runFullPolicyCheck() {
-  const scriptLock = LockService.getScriptLock();
-  if (!scriptLock.tryLock(1000)) {
-    Logger.log("A policy check is already running. Exiting.");
-    SpreadsheetApp.getActiveSpreadsheet().toast("A policy check is already in progress. Please wait for it to complete.", "Info", 10);
-    return;
-  }
+  const startTime = new Date();
+  Logger.log(`============================================================`);
+  Logger.log(`▶️ START: Running '${SCRIPT_NAME}' at ${startTime.toLocaleString()}`);
+  Logger.log(`============================================================`);
+
+  deleteTriggers();
+  PropertiesService.getScriptProperties().deleteAllProperties();
+  Logger.log("Cleaned up old triggers and properties for a fresh run.");
+  PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
 
   try {
-    const startTime = new Date();
-    const ui = SpreadsheetApp.getUi();
-    const ss = SpreadsheetApp.getActiveSpreadsheet(); 
+    Logger.log("--- Calling Dependency: getGroupsSettings() ---");
+    getGroupsSettings();
+  } catch (e) {
+    const errorMessage = `A dependency script ('getGroupsSettings') failed to run. Error: ${e.message}. The script cannot continue.`;
+    Logger.log(errorMessage + `\nStack: ${e.stack}`);
+    SpreadsheetApp.getUi().alert(errorMessage);
+  }
+}
 
-    Logger.log(`============================================================`);
-    Logger.log(`▶️ START: Running '${SCRIPT_NAME}' at ${startTime.toLocaleString()}`);
-    Logger.log(`============================================================`);
 
-    deleteTriggers();
-    PropertiesService.getScriptProperties().deleteAllProperties();
-    Logger.log("Cleaned up old triggers and properties for a fresh run.");
 
-    try {
-      Logger.log("--- Calling Dependency: getGroupsSettings() ---");
-      ss.toast('Updating Group data...', SCRIPT_NAME, -1); 
-      getGroupsSettings();
-      SpreadsheetApp.flush(); // Force the spreadsheet to update
+function _continueAfterGroups() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    Logger.log("--- Automatically continuing after group settings fetch ---");
+    Logger.log("--- Calling Dependency: getOrgUnits() ---");
+    getOrgUnits();
 
-      Logger.log("--- Calling Dependency: getOrgUnits() ---");
-      ss.toast('Updating OU data...', SCRIPT_NAME, -1);
-      getOrgUnits();
-      SpreadsheetApp.flush(); // Force the spreadsheet to update
-
-    } catch (e) {
-      const errorMessage = `A dependency script ('getGroupsSettings' or 'getOrgUnits') failed to run. Error: ${e.message}. The script cannot continue.`;
-      Logger.log(errorMessage + `\nStack: ${e.stack}`);
-      ss.toast(e.message, '❌ Dependency Error', 30);
-      ui.alert(errorMessage);
-      return;
-    }
-    
     if (!ss.getRangeByName('GroupID') || !ss.getRangeByName('OrgID2Path')) {
-        const errorMessage = `VALIDATION FAILED: Required named ranges ('GroupID', 'OrgID2Path') were not found after dependency scripts ran. Please ensure they create these ranges correctly. The script cannot continue.`;
+        const errorMessage = `VALIDATION FAILED: Required named ranges ('GroupID', 'OrgID2Path') were not found after dependency scripts ran. The script cannot continue.`;
         Logger.log(errorMessage);
-        ss.toast(errorMessage, '❌ Validation Error', 30);
-        ui.alert(errorMessage);
         return;
     }
     
     Logger.log("✅ All dependency scripts ran and outputs were validated.");
-    ss.toast('Dependencies validated. Starting policy fetch...', SCRIPT_NAME, 10);
-    SpreadsheetApp.flush();
-
-    PropertiesService.getScriptProperties().setProperty('startTime', startTime.getTime());
+    
     continuePolicyFetchAndProcess();
-
-  } finally {
-    scriptLock.releaseLock();
-    Logger.log("Script lock released.");
+  } catch (e) {
+    const errorMessage = `A dependency script ('getOrgUnits') failed to run. Error: ${e.message}. The script cannot continue.`;
+    Logger.log(errorMessage + `\nStack: ${e.stack}`);
+    return;
   }
 }
+
 
 
 // ---------------------------------------------
@@ -84,7 +73,8 @@ function isTimeUp(startTime) {
 function deleteTriggers() {
   try {
     ScriptApp.getProjectTriggers().forEach(trigger => {
-      if (trigger.getHandlerFunction() === TRIGGER_FUNCTION_NAME) {
+      const handlerFunction = trigger.getHandlerFunction();
+      if (handlerFunction === TRIGGER_FUNCTION_NAME || handlerFunction === 'processGroupSettingsBatch') {
         ScriptApp.deleteTrigger(trigger);
       }
     });
@@ -107,10 +97,6 @@ function continuePolicyFetchAndProcess() {
   const initialPolicyCount = Object.keys(policyMap).length;
   Logger.log(`Resuming process. Policies collected so far: ${initialPolicyCount}.`);
   
-  // Now this toast will work correctly
-  ss.toast(`Fetching policies... (${initialPolicyCount} collected so far)`, SCRIPT_NAME, 20);
-  SpreadsheetApp.flush();
-
   const urlBase = "https://cloudidentity.googleapis.com/v1beta1/policies";
   const pageSize = 100;
   let hasNextPage = true;
@@ -124,8 +110,6 @@ function continuePolicyFetchAndProcess() {
   do {
     if (isTimeUp(startTime)) {
       Logger.log("Approaching time limit. Pausing execution.");
-      // This toast will also work now
-      ss.toast('Pausing to avoid timeout. Will resume in 1 minute.', SCRIPT_NAME, 60);      
       hasNextPage = true;
       break;
     }
@@ -152,10 +136,6 @@ function continuePolicyFetchAndProcess() {
         }
       });
       
-      // And this toast will work
-      ss.toast(`Fetching policies... (${Object.keys(policyMap).length} collected)`, SCRIPT_NAME, 20);
-      SpreadsheetApp.flush(); // Flush to see updates during the loop
-
       hasNextPage = !!nextPageToken;
       if (hasNextPage) Utilities.sleep(100);
 
@@ -171,9 +151,6 @@ function continuePolicyFetchAndProcess() {
 
       Logger.log(`FATAL ERROR during policy fetch: ${error.message}. Halting execution.`);
       Logger.log(`Stack: ${error.stack}`);
-
-      ss.toast(userMessage, errorTitle, 60);
-      ui.alert(errorTitle, userMessage, ui.ButtonSet.OK);
 
       deleteTriggers();
       PropertiesService.getScriptProperties().deleteAllProperties();
