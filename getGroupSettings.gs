@@ -4,7 +4,7 @@
  * to avoid exceeding Google Apps Script's execution time limits.
  */
 
-const GROUP_SETTINGS_BATCH_SIZE = 250; // Number of groups to process in each execution
+const GROUP_SETTINGS_BATCH_SIZE = 200; // Number of groups to process in each execution
 
 /**
  * Main function to start the group settings inventory process.
@@ -17,39 +17,9 @@ function getGroupsSettings() {
 
   try {
     // Clear previous script properties to ensure a fresh start
-    PropertiesService.getScriptProperties().deleteProperty('groupSettingsStatus');
-    PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'running');
-
-    const groupEmails = [];
-    let nextPageToken = "";
-
-    try {
-      do {
-        const page = AdminDirectory.Groups.list({
-          customer: 'my_customer',
-          maxResults: 100,
-          pageToken: nextPageToken,
-          orderBy: 'email'
-        });
-        const groups = page.groups;
-
-        if (groups) {
-          groups.forEach((group) => {
-            groupEmails.push(group.email);
-          });
-        }
-        nextPageToken = page.nextPageToken || "";
-      } while (nextPageToken);
-    } catch (error) {
-      Logger.log(`!! ERROR in ${functionName} (Listing Groups): ${error.message}`);
-      Logger.log(`!! Error details: ${JSON.stringify(error)}`);
-      throw new Error(`Failed to retrieve groups. Check permissions and API availability. ${error.message}`);
-    }
-
-    // Store the list of groups and the starting index in script properties
     const properties = PropertiesService.getScriptProperties();
-    properties.setProperty('groupEmailsForSettings', JSON.stringify(groupEmails));
-    properties.setProperty('currentIndexForSettings', '0');
+    properties.deleteProperty('groupSettingsNextPageToken');
+    properties.setProperty('groupSettingsStatus', 'running');
     properties.setProperty('startTimeForSettings', startTime.getTime());
 
     // Setup the spreadsheet
@@ -101,52 +71,65 @@ function setupGroupSettingsSheet() {
 function processGroupSettingsBatch() {
   const functionName = 'processGroupSettingsBatch';
   const properties = PropertiesService.getScriptProperties();
-  const groupEmails = JSON.parse(properties.getProperty('groupEmailsForSettings'));
-  let currentIndex = parseInt(properties.getProperty('currentIndexForSettings'), 10);
   const startTime = new Date(parseInt(properties.getProperty('startTimeForSettings'), 10));
+  let nextPageToken = properties.getProperty('groupSettingsNextPageToken') || "";
 
   const allRows = [];
-  const groupsToProcess = groupEmails.slice(currentIndex, currentIndex + GROUP_SETTINGS_BATCH_SIZE);
+  
+  try {
+    const page = AdminDirectory.Groups.list({
+      customer: 'my_customer',
+      maxResults: 200,
+      pageToken: nextPageToken,
+      orderBy: 'email'
+    });
+    const groups = page.groups;
 
-  for (const groupEmail of groupsToProcess) {
-    Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits. 
-    try {
-      const group = AdminDirectory.Groups.get(groupEmail)
-      const settings = AdminGroupSettings.Groups.get(groupEmail);
-      allRows.push([
-        group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
-        settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
-        settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
-        settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
-        settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
-        settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
-        settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
-        settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
-        settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
-      ]);
-    } catch (e) {
-      Logger.log(`Could not fetch settings for group ${groupEmail}. Error: ${e.message}`);
+    if (groups) {
+      for (const group of groups) {
+        Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits. 
+        try {
+          const settings = AdminGroupSettings.Groups.get(group.email);
+          allRows.push([
+            group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
+            settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
+            settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
+            settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
+            settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
+            settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
+            settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
+            settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
+            settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
+          ]);
+        } catch (e) {
+          Logger.log(`Could not fetch settings for group ${group.email}. Error: ${e.message}`);
+        }
+      }
     }
-  }
 
-  if (allRows.length > 0) {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
-    groupSettingsSheet.getRange(groupSettingsSheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
-  }
+    if (allRows.length > 0) {
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+      groupSettingsSheet.getRange(groupSettingsSheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
+    }
 
-  currentIndex += GROUP_SETTINGS_BATCH_SIZE;
-  properties.setProperty('currentIndexForSettings', currentIndex.toString());
+    nextPageToken = page.nextPageToken || "";
+    properties.setProperty('groupSettingsNextPageToken', nextPageToken);
 
-  if (currentIndex < groupEmails.length) {
-    TriggerService.createTrigger('processGroupSettingsBatch', 1);
-  } else {
-    finalizeGroupSettingsSheet();
-    const endTime = new Date();
-    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
-    Logger.log(`-- Finished getGroupsSettings at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
-    PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'completed');
-    _continueAfterGroups();
+    if (nextPageToken) {
+      TriggerService.createTrigger('processGroupSettingsBatch', 1);
+    } else {
+      finalizeGroupSettingsSheet();
+      const endTime = new Date();
+      const duration = (endTime.getTime() - startTime.getTime()) / 1000;
+      Logger.log(`-- Finished getGroupsSettings at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
+      PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'completed');
+      _continueAfterGroups();
+    }
+  } catch (error) {
+    Logger.log(`!! ERROR in ${functionName} (Listing Groups): ${error.message}`);
+    Logger.log(`!! Error details: ${JSON.stringify(error)}`);
+    throw new Error(`Failed to retrieve groups. Check permissions and API availability. ${error.message}`);
   }
 }
 
