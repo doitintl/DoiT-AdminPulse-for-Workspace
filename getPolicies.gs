@@ -4,7 +4,7 @@
 
 const SCRIPT_NAME = "Workspace Policy Check";
 const TRIGGER_FUNCTION_NAME = "continuePolicyFetchAndProcess";
-const MAX_RUNTIME_MINUTES = 28;
+const MAX_RUNTIME_MINUTES = 5; // Use 5 minutes for time-driven triggers
 
 
 
@@ -50,6 +50,9 @@ function _continueAfterGroups() {
     }
     
     Logger.log("✅ All dependency scripts ran and outputs were validated.");
+    
+    // Reset the start time for the policy fetch phase, since dependencies may have taken a long time.
+    PropertiesService.getScriptProperties().setProperty('startTime', new Date().getTime());
     
     continuePolicyFetchAndProcess();
   } catch (e) {
@@ -98,7 +101,7 @@ function continuePolicyFetchAndProcess() {
   Logger.log(`Resuming process. Policies collected so far: ${initialPolicyCount}.`);
   
   const urlBase = "https://cloudidentity.googleapis.com/v1beta1/policies";
-  const pageSize = 100;
+  const pageSize = 200;
   let hasNextPage = true;
   const params = {
     headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
