@@ -171,7 +171,15 @@ function continuePolicyFetchAndProcess() {
         'additionalServicesData': JSON.stringify(additionalServicesData),
         'startTime': startTime
     });
-    deleteTriggers(); 
+    // Delete only triggers for this function to avoid conflicts
+    try {
+      ScriptApp.getProjectTriggers().forEach(trigger => {
+        if (trigger.getHandlerFunction() === TRIGGER_FUNCTION_NAME) {
+          ScriptApp.deleteTrigger(trigger);
+        }
+      });
+    } catch (e) { /* Ignore */ }
+
     ScriptApp.newTrigger(TRIGGER_FUNCTION_NAME).timeBased().after(60 * 1000).create();
     Logger.log(`⏸️ PAUSING. Trigger set to continue.`);
   } else {

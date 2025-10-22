@@ -74,58 +74,70 @@ function processGroupSettingsBatch() {
   const startTime = new Date(parseInt(properties.getProperty('startTimeForSettings'), 10));
   let nextPageToken = properties.getProperty('groupSettingsNextPageToken') || "";
 
-  const allRows = [];
-  
-  try {
-    const page = AdminDirectory.Groups.list({
-      customer: 'my_customer',
-      maxResults: 200,
-      pageToken: nextPageToken,
-      orderBy: 'email'
-    });
-    const groups = page.groups;
+  const executionStartTime = new Date().getTime();
+  const MAX_EXECUTION_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-    if (groups) {
-      for (const group of groups) {
-        Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits. 
-        try {
-          const settings = AdminGroupSettings.Groups.get(group.email);
-          allRows.push([
-            group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
-            settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
-            settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
-            settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
-            settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
-            settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
-            settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
-            settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
-            settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
-          ]);
-        } catch (e) {
-          Logger.log(`Could not fetch settings for group ${group.email}. Error: ${e.message}`);
+  try {
+    do {
+      const allRows = [];
+      const page = AdminDirectory.Groups.list({
+        customer: 'my_customer',
+        maxResults: 200,
+        pageToken: nextPageToken,
+        orderBy: 'email'
+      });
+      const groups = page.groups;
+
+      if (groups) {
+        for (const group of groups) {
+          Utilities.sleep(250); // IMPORTANT: Prevents hitting API rate limits.
+          try {
+            const settings = AdminGroupSettings.Groups.get(group.email);
+            allRows.push([
+              group.id, group.name, group.email, group.description, settings.whoCanJoin, settings.whoCanPostMessage,
+              settings.whoCanViewMembership, settings.whoCanViewGroup, settings.whoCanDiscoverGroup, settings.allowExternalMembers,
+              settings.allowWebPosting, settings.primaryLanguage, settings.isArchived, settings.archiveOnly,
+              settings.messageModerationLevel, settings.spamModerationLevel, settings.replyTo, settings.customReplyTo,
+              settings.includeCustomFooter, settings.customFooterText, settings.sendMessageDenyNotification,
+              settings.defaultMessageDenyNotificationText, settings.membersCanPostAsTheGroup, settings.includeInGlobalAddressList,
+              settings.whoCanLeaveGroup, settings.whoCanContactOwner, settings.favoriteRepliesOnTop, settings.whoCanBanUsers,
+              settings.whoCanModerateMembers, settings.whoCanModerateContent, settings.whoCanAssistContent,
+              settings.customRolesEnabledForSettingsToBeMerged, settings.enableCollaborativeInbox, settings.defaultSender,
+            ]);
+          } catch (e) {
+            Logger.log(`Could not fetch settings for group ${group.email}. Error: ${e.message}`);
+          }
         }
       }
-    }
 
-    if (allRows.length > 0) {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-      const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
-      groupSettingsSheet.getRange(groupSettingsSheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
-    }
+      if (allRows.length > 0) {
+        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const groupSettingsSheet = spreadsheet.getSheetByName("Group Settings");
+        groupSettingsSheet.getRange(groupSettingsSheet.getLastRow() + 1, 1, allRows.length, allRows[0].length).setValues(allRows);
+      }
 
-    nextPageToken = page.nextPageToken || "";
-    properties.setProperty('groupSettingsNextPageToken', nextPageToken);
+      nextPageToken = page.nextPageToken || "";
+      properties.setProperty('groupSettingsNextPageToken', nextPageToken);
 
-    if (nextPageToken) {
-      TriggerService.createTrigger('processGroupSettingsBatch', 1);
-    } else {
-      finalizeGroupSettingsSheet();
-      const endTime = new Date();
-      const duration = (endTime.getTime() - startTime.getTime()) / 1000;
-      Logger.log(`-- Finished getGroupsSettings at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
-      PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'completed');
-      _continueAfterGroups();
-    }
+      const currentTime = new Date().getTime();
+      if (currentTime - executionStartTime > MAX_EXECUTION_TIME) {
+        Logger.log("Approaching execution time limit. Scheduling a trigger for continuation.");
+        ScriptApp.newTrigger('processGroupSettingsBatch')
+            .timeBased()
+            .after(1 * 60 * 1000) // 1 minute delay
+            .create();
+        return; // Exit the current execution
+      }
+
+    } while (nextPageToken);
+
+    finalizeGroupSettingsSheet();
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
+    Logger.log(`-- Finished getGroupsSettings at: ${endTime.toLocaleString()} (Duration: ${duration.toFixed(2)}s)`);
+    PropertiesService.getScriptProperties().setProperty('groupSettingsStatus', 'completed');
+    _continueAfterGroups();
+
   } catch (error) {
     Logger.log(`!! ERROR in ${functionName} (Listing Groups): ${error.message}`);
     Logger.log(`!! Error details: ${JSON.stringify(error)}`);
@@ -296,14 +308,4 @@ function _addGroupSettingsHeaderNotes(sheet) {
   }
 }
 
-/**
- * A simple trigger service to create a trigger for the next batch execution.
- */
-const TriggerService = {
-  createTrigger: (functionName, delayInSeconds) => {
-    ScriptApp.newTrigger(functionName)
-      .timeBased()
-      .after(delayInSeconds * 1000)
-      .create();
-  }
-};
+
