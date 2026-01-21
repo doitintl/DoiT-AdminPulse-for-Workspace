@@ -48,6 +48,8 @@ function onOpen(e) {
     .addSeparator()
     .addSubMenu(reportsMenu) // Add the fully constructed reports menu
     .addSeparator()
+    .addItem('Run Threat Analysis', 'runThreatAnalysis')
+    .addSeparator()
     .addItem('Get Support', 'contactPartner')
     .addToUi();
 }
